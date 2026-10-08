@@ -1,5 +1,11 @@
 let currentRole = "student";
 
+// ALLOWED EMAIL DOMAIN PER ROLE
+const EMAIL_DOMAINS = {
+  student: "students.nu-fairview.edu.ph",
+  employee: "nu-fairview.edu.ph"
+};
+
 // ROLE SWITCHER FUNCTION
 function switchRole(role) {
   currentRole = role;
@@ -13,6 +19,9 @@ function switchRole(role) {
 
   // Clear previous error messages when switching
   clearErrors();
+
+  // Clear the email so a wrong-role email can't carry over
+  regEmail.value = "";
 
   if (role === "student") {
     studentTab.classList.add("active");
@@ -31,6 +40,27 @@ function switchRole(role) {
   }
 }
 
+// EMAIL VALIDATION (role-based domain check)
+function validateEmail() {
+  const email = document.getElementById("regEmail").value.trim().toLowerCase();
+  const errorEl = document.getElementById("regEmailError");
+  const domain = EMAIL_DOMAINS[currentRole];
+
+  // username + exact domain match after the "@"
+  const pattern = new RegExp(`^[a-z0-9._%+-]+@${domain.replace(/\./g, "\\.")}$`);
+
+  if (email === "") {
+    errorEl.textContent = "Email address is required.";
+    return false;
+  }
+  if (!pattern.test(email)) {
+    errorEl.textContent = `Please use your NU ${currentRole} email (@${domain}).`;
+    return false;
+  }
+  errorEl.textContent = "";
+  return true;
+}
+
 // FORM SUBMISSION & VALIDATION
 const registerForm = document.getElementById("registerForm");
 
@@ -40,7 +70,6 @@ registerForm.addEventListener("submit", function (event) {
   clearErrors();
 
   const name = document.getElementById("regName").value.trim();
-  const email = document.getElementById("regEmail").value.trim();
   const password = document.getElementById("regPassword").value;
   const confirmPassword = document.getElementById("regConfirmPassword").value;
 
@@ -79,9 +108,8 @@ registerForm.addEventListener("submit", function (event) {
     }
   }
 
-  // Validate Email
-  if (email === "") {
-    document.getElementById("regEmailError").textContent = "Email address is required.";
+  // Validate Email (student: @students.nu-fairview.edu.ph, employee: @nu-fairview.edu.ph)
+  if (!validateEmail()) {
     isValid = false;
   }
 
@@ -109,6 +137,9 @@ registerForm.addEventListener("submit", function (event) {
     window.location.href = "https://oogwayhsha.github.io/index.html";
   }
 });
+
+// Validate email as soon as the user leaves the field
+document.getElementById("regEmail").addEventListener("blur", validateEmail);
 
 // HELPER FUNCTION TO CLEAR ERRORS
 function clearErrors() {
