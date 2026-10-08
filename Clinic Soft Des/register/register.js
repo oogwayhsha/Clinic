@@ -1,51 +1,9 @@
-// ==========================================
-// FIREBASE IMPORTS
-// ==========================================
-import { auth, db } from "../firebase/firebase.js";
-import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { ref, set } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
-
 let currentRole = "student";
 
 // ALLOWED EMAIL DOMAIN PER ROLE
 const EMAIL_DOMAINS = {
   student: "students.nu-fairview.edu.ph",
   employee: "nu-fairview.edu.ph"
-};
-
-// ROLE SWITCHER FUNCTION
-// Explicitly attach to window so inline onclick="switchRole(...)" can access it in ES modules
-window.switchRole = function (role) {
-  currentRole = role;
-
-  const studentTab = document.getElementById("studentTab");
-  const employeeTab = document.getElementById("employeeTab");
-  const studentFields = document.getElementById("studentFields");
-  const employeeFields = document.getElementById("employeeFields");
-  const formRoleTitle = document.getElementById("formRoleTitle");
-  const regEmail = document.getElementById("regEmail");
-
-  // Clear previous error messages when switching tabs
-  clearErrors();
-
-  // Clear the email so a wrong-role email can't carry over
-  regEmail.value = "";
-
-  if (role === "student") {
-    studentTab.classList.add("active");
-    employeeTab.classList.remove("active");
-    studentFields.style.display = "block";
-    employeeFields.style.display = "none";
-    formRoleTitle.textContent = "Student Registration";
-    regEmail.placeholder = "username@students.nu-fairview.edu.ph";
-  } else {
-    employeeTab.classList.add("active");
-    studentTab.classList.remove("active");
-    employeeFields.style.display = "block";
-    studentFields.style.display = "none";
-    formRoleTitle.textContent = "Employee / Staff Registration";
-    regEmail.placeholder = "username@nu-fairview.edu.ph";
-  }
 };
 
 // EMAIL VALIDATION (role-based domain check)
@@ -69,10 +27,134 @@ function validateEmail() {
   return true;
 }
 
+// Validate email as soon as the user leaves the field
+const regEmailInput = document.getElementById("regEmail");
+if (regEmailInput) regEmailInput.addEventListener("blur", validateEmail);
+
+// ID FORMAT PER ROLE (edit these to change the format)
+const ID_FORMATS = {
+  student: {
+    inputId: "studentId",
+    errorId: "studentIdError",
+    label: "Student ID",
+    pattern: /^\d{4}-\d{6}$/,
+    example: "2023-123456",
+    maxLength: 11,
+    // digits only, hyphen after the 4th digit
+    format: function (raw) {
+      const d = raw.replace(/\D/g, "").slice(0, 10);
+      return d.length > 4 ? d.slice(0, 4) + "-" + d.slice(4) : d;
+    }
+  },
+  employee: {
+    inputId: "employeeId",
+    errorId: "employeeIdError",
+    label: "Employee ID",
+    pattern: /^EMP-\d{4}-\d{3}$/,
+    example: "EMP-2024-001",
+    maxLength: 12,
+    // EMP- prefix added automatically, then 4 digits, hyphen, 3 digits
+    format: function (raw) {
+      const d = raw.replace(/\D/g, "").slice(0, 7);
+      if (d === "") {
+        // allow typing the "EMP" prefix by hand, otherwise clear
+        const letters = raw.toUpperCase().replace(/[^A-Z]/g, "");
+        return "EMP".startsWith(letters) ? letters : "";
+      }
+      return "EMP-" + d.slice(0, 4) + (d.length > 4 ? "-" + d.slice(4) : "");
+    }
+  }
+};
+
+// ID VALIDATION (checks the ID for the active role)
+function validateId() {
+  const fmt = ID_FORMATS[currentRole];
+  const value = document.getElementById(fmt.inputId).value.trim();
+  const errorEl = document.getElementById(fmt.errorId);
+
+  if (value === "") {
+    errorEl.textContent = `${fmt.label} is required.`;
+    return false;
+  }
+  if (!fmt.pattern.test(value)) {
+    errorEl.textContent = `Invalid ${fmt.label}. Use the format ${fmt.example}.`;
+    return false;
+  }
+  errorEl.textContent = "";
+  return true;
+}
+
+// AUTO-FORMAT: each role uses its own format() function
+function setupIdFormatting(role) {
+  const fmt = ID_FORMATS[role];
+  const input = document.getElementById(fmt.inputId);
+
+  if (!input) {
+    console.warn(`#${fmt.inputId} not found, skipping ID formatting for ${role}`);
+    return;
+  }
+
+  input.placeholder = fmt.example;
+  input.maxLength = fmt.maxLength;
+
+  input.addEventListener("input", function () {
+    this.value = fmt.format(this.value);
+  });
+
+  // only validate on blur when this role is the active one
+  input.addEventListener("blur", function () {
+    if (currentRole === role) validateId();
+  });
+}
+
+setupIdFormatting("student");
+setupIdFormatting("employee");
+
+// ROLE SWITCHER FUNCTION
+function switchRole(role) {
+  currentRole = role;
+
+  const studentTab = document.getElementById("studentTab");
+  const employeeTab = document.getElementById("employeeTab");
+  const studentFields = document.getElementById("studentFields");
+  const employeeFields = document.getElementById("employeeFields");
+  const formRoleTitle = document.getElementById("formRoleTitle");
+  const regEmail = document.getElementById("regEmail");
+
+  // Clear previous error messages when switching
+  clearErrors();
+
+  // Clear email and IDs so wrong-role values can't carry over
+  ["regEmail", "studentId", "employeeId"].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  if (role === "student") {
+    studentTab.classList.add("active");
+    employeeTab.classList.remove("active");
+    studentFields.style.display = "block";
+    employeeFields.style.display = "none";
+    formRoleTitle.textContent = "Student Registration";
+    regEmail.placeholder = "username@students.nu-fairview.edu.ph";
+  } else {
+    employeeTab.classList.add("active");
+    studentTab.classList.remove("active");
+    employeeFields.style.display = "block";
+    studentFields.style.display = "none";
+    formRoleTitle.textContent = "Employee / Staff Registration";
+    regEmail.placeholder = "username@nu-fairview.edu.ph";
+  }
+}
+
+// Expose to the page: <script type="module"> keeps functions private,
+// so the inline onclick="switchRole(...)" buttons need this to find it
+window.switchRole = switchRole;
+
 // FORM SUBMISSION & VALIDATION
 const registerForm = document.getElementById("registerForm");
 
-registerForm.addEventListener("submit", async function (event) {
+registerForm.addEventListener("submit", function (event) {
   event.preventDefault();
 
   clearErrors();
@@ -89,42 +171,20 @@ registerForm.addEventListener("submit", async function (event) {
     isValid = false;
   }
 
-  // Role-specific Variables
-  let studentId = "";
-  let studentCourse = "";
-  let employeeId = "";
-  let employeeDept = "";
-
-  // Validate Role-Specific Fields
-// Inside registerForm.addEventListener("submit", ...)
-
-if (currentRole === "student") {
-  studentId = document.getElementById("studentId").value.trim();
-  studentCourse = document.getElementById("studentCourse").value.trim();
-
-  // Pattern for format like 2022-123456
-  const studentIdPattern = /^\d{4}-\d{6}$/; 
-
-  if (studentId === "") {
-    document.getElementById("studentIdError").textContent = "Student ID is required.";
-    isValid = false;
-  } else if (!studentIdPattern.test(studentId)) {
-    document.getElementById("studentIdError").textContent = "Invalid format. Use YYYY-XXXXXX (e.g., 2022-123456).";
+  // Validate ID format (student or employee)
+  if (!validateId()) {
     isValid = false;
   }
 
-  if (studentCourse === "") {
-    document.getElementById("studentCourseError").textContent = "Course & Year is required.";
-    isValid = false;
-  }
-  } else {
-    employeeId = document.getElementById("employeeId").value.trim();
-    employeeDept = document.getElementById("employeeDept").value.trim();
-
-    if (employeeId === "") {
-      document.getElementById("employeeIdError").textContent = "Employee ID is required.";
+  // Validate the other role-specific field
+  if (currentRole === "student") {
+    const studentCourse = document.getElementById("studentCourse").value.trim();
+    if (studentCourse === "") {
+      document.getElementById("studentCourseError").textContent = "Course & Year is required.";
       isValid = false;
     }
+  } else {
+    const employeeDept = document.getElementById("employeeDept").value.trim();
     if (employeeDept === "") {
       document.getElementById("employeeDeptError").textContent = "Department is required.";
       isValid = false;
@@ -154,72 +214,18 @@ if (currentRole === "student") {
     isValid = false;
   }
 
-  // Submit if Valid
+  // If valid, simulate submission
   if (isValid) {
-    try {
-      // 1. Create Firebase Account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // 2. Prepare Payload
-      const userData = {
-        name: name,
-        email: email,
-        role: currentRole,
-        createdAt: new Date().toISOString()
-      };
-
-      if (currentRole === "student") {
-        userData.studentId = studentId;
-        userData.course = studentCourse;
-      } else {
-        userData.employeeId = employeeId;
-        userData.department = employeeDept;
-      }
-
-      // 3. Save User Data to Realtime Database
-      await set(ref(db, `users/${user.uid}`), userData);
-
-      // 4. Success Redirect
-      alert("Registration Successful!");
-      window.location.href = "../login/login.html";
-
-    } catch (error) {
-      console.error("Registration error:", error);
-
-      // Map error messages to correct DOM element IDs
-      const emailError = document.getElementById("regEmailError");
-      const passwordError = document.getElementById("regPasswordError");
-      const globalMessage = document.getElementById("regMessage");
-
-      switch (error.code) {
-        case "auth/email-already-in-use":
-          if (emailError) emailError.textContent = "This email is already registered.";
-          break;
-        case "auth/invalid-email":
-          if (emailError) emailError.textContent = "Invalid email address.";
-          break;
-        case "auth/weak-password":
-          if (passwordError) passwordError.textContent = "Password is too weak.";
-          break;
-        default:
-          if (globalMessage) globalMessage.textContent = "Registration failed. Please try again.";
-          break;
-      }
-    }
+    alert(`Registration Successful as ${currentRole.toUpperCase()}! Redirecting to login...`);
+    window.location.href = "https://oogwayhsha.github.io/index.html";
   }
 });
-
-// Validate email as soon as the user leaves the field
-document.getElementById("regEmail").addEventListener("blur", validateEmail);
 
 // HELPER FUNCTION TO CLEAR ERRORS
 function clearErrors() {
   const errorElements = document.querySelectorAll(".error");
   errorElements.forEach((el) => (el.textContent = ""));
-
-  const regMessage = document.getElementById("regMessage");
-  if (regMessage) regMessage.textContent = "";
+  document.getElementById("regMessage").textContent = "";
 }
 
 // PASSWORD TOGGLE EYE FUNCTION
@@ -227,17 +233,15 @@ function setupToggle(iconId, inputId) {
   const icon = document.getElementById(iconId);
   const input = document.getElementById(inputId);
 
-  if (icon && input) {
-    icon.addEventListener("click", function () {
-      if (input.type === "password") {
-        input.type = "text";
-        this.classList.replace("fa-eye", "fa-eye-slash");
-      } else {
-        input.type = "password";
-        this.classList.replace("fa-eye-slash", "fa-eye");
-      }
-    });
-  }
+  icon.addEventListener("click", function () {
+    if (input.type === "password") {
+      input.type = "text";
+      this.classList.replace("fa-eye", "fa-eye-slash");
+    } else {
+      input.type = "password";
+      this.classList.replace("fa-eye-slash", "fa-eye");
+    }
+  });
 }
 
 setupToggle("togglePassword", "regPassword");
