@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>NUFV CARES | Login</title>
+
+    <link rel="stylesheet" href="login.css">
+
+    <!-- Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    >
+</head>
+
+<body>
+
+    <div class="login-wrapper">
+
+        <!-- =====================================================
+             LEFT SIDE - BRANDING
+        ====================================================== -->
+        <section class="login-brand">
+
+            <!-- Decorative background elements -->
+            <div class="decorative-dots dots-top"></div>
+            <div class="decorative-dots dots-bottom"></div>
+
+            <div class="brand-content">
+
+                <div class="brand-glass-card">
+
+                    <!-- NU LOGO -->
+                    <div class="logo">
+                        <img
+                            src="nu-logo.png"
+                            alt="National University Logo"
+                        >
+                    </div>
+
+                    <!-- BRAND NAME -->
+                    <h1>NUFV CARES</h1>
+
+                    <!-- Gold accent -->
+                    <div class="gold-line"></div>
+
+                    <!-- DESCRIPTION -->
+                    <p>
+                        Clinic Appointment, Reservation,
+                        <br>
+                        and Engagement System
+                    </p>
+
+                    <div class="brand-tagline">
+                        <span>CARE</span>
+                        <span class="separator">•</span>
+                        <span>WELLNESS</span>
+                        <span class="separator">•</span>
+                        <span>COMPASSION</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             RIGHT SIDE - LOGIN
+        ====================================================== -->
+        <section class="login-form-section">
+
+            <!-- Decorative background -->
+            <div class="blue-circle circle-one"></div>
+            <div class="blue-circle circle-two"></div>
+
+            <div class="login-container">
+
+                <!-- LOGIN HEADER -->
+                <div class="login-header">
+
+                    <div class="login-icon">
+                        <i class="fa-solid fa-shield-heart"></i>
+                    </div>
+
+                    <h2>Welcome Back!</h2>
+
+                    <p class="login-subtitle">
+                        Sign in to your account
+                    </p>
+
+                    <div class="header-line"></div>
+
+                </div>
+
+
+                <!-- =================================================
+                     LOGIN FORM
+                ================================================== -->
+                <form id="loginForm">
+
+                    <!-- ACCOUNT TYPE -->
+                    <div class="form-group">
+
+                        <label for="loginRole">
+                            Select Account Type
+                        </label>
+
+                        <div class="input-wrapper">
+
+                            <i class="fa-solid fa-user"></i>
+
+                            <select id="loginRole">
+                                <option value="">
+                                    Select Account Type
+                                </option>
+
+                                <option value="student">
+                                    Student
+                                </option>
+
+                                <option value="employee">
+                                    Employee
+                                </option>
+                            </select>
+
+                            <i class="fa-solid fa-chevron-down select-arrow"></i>
+
+                        </div>
+
+                        <span
+                            id="loginRoleError"
+                            class="error"
+                        ></span>
+
+                    </div>
+
+
+                    <!-- USERNAME -->
+                    <div class="form-group">
+
+                        <label for="loginUsername">
+                            Username
+                        </label>
+
+                        <div class="input-wrapper">
+
+                            <i class="fa-solid fa-user"></i>
+
+                            <input
+                                type="text"
+                                id="loginUsername"
+                                placeholder="Enter your username"
+                                autocomplete="username"
+                            >
+
+                        </div>
+
+                        <span
+                            id="loginUsernameError"
+                            class="error"
+                        ></span>
+
+                    </div>
+
+
+                    <!-- PASSWORD -->
+                    <div class="form-group">
+
+                        <label for="loginPassword">
+                            Password
+                        </label>
+
+                        <div class="input-wrapper">
+
+                            <i class="fa-solid fa-lock"></i>
+
+                            <input
+                                type="password"
+                                id="loginPassword"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                            >
+
+                            <i
+                                class="fa-solid fa-eye password-toggle"
+                                id="toggleLoginPassword"
+                            ></i>
+
+                        </div>
+
+                        <span
+                            id="loginPasswordError"
+                            class="error"
+                        ></span>
+
+                    </div>
+
+
+                    <!-- =================================================
+                         RFID LOGIN
+                    ================================================== -->
+                    <div class="rfid-login">
+
+                        <div class="rfid-icon">
+
+                            <i class="fa-solid fa-id-card"></i>
+
+                            <span class="rfid-pulse"></span>
+
+                        </div>
+
+                        <div class="rfid-information">
+
+                            <h3>RFID Login</h3>
+
+                            <p id="rfidStatus">
+                                Tap your RFID card on the reader
+                            </p>
+
+                        </div>
+
+                        <div class="rfid-status-box">
+
+                            <span>RFID</span>
+
+                            <strong id="rfidUID">
+                                Waiting...
+                            </strong>
+
+                            <div class="status-indicator">
+                                <span></span>
+                                Ready
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- LOGIN BUTTON -->
+                    <button
+                        class="login-button"
+                        type="submit"
+                    >
+
+                        <span>Login</span>
+
+                        <i class="fa-solid fa-arrow-right"></i>
+
+                    </button>
+
+
+                    <!-- SIGN UP -->
+                    <div class="signup-link">
+
+                        <span>
+                            Don't have an account?
+                        </span>
+
+                        <a href="../register/register.html">
+                            Sign Up
+                        </a>
+
+                    </div>
+
+
+                    <!-- LOGIN MESSAGE -->
+                    <p id="loginMessage"></p>
+
+                </form>
+
+
+                <!-- FOOTER -->
+                <div class="login-footer">
+                    <i class="fa-solid fa-lock"></i>
+                    Secure Clinic Portal
+                </div>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+    <script src="login.js"></script>
+
+</body>
+</html>
