@@ -1,0 +1,1530 @@
+/* ============================================================
+   NUFV CARES
+   MODERN LOGIN PAGE
+   ============================================================ */
+
+
+/* ============================================================
+   ROOT VARIABLES
+   ============================================================ */
+
+:root {
+
+    --nu-blue: #35408F;
+    --nu-dark-blue: #17256b;
+    --nu-deep-blue: #101d5c;
+
+    --nu-gold: #f7c928;
+
+    --white: #ffffff;
+    --off-white: #f8faff;
+
+    --text-dark: #18224d;
+    --text-gray: #737b95;
+
+    --border: #dfe4f2;
+
+    --error: #dc3545;
+    --success: #28a745;
+
+}
+
+
+/* ============================================================
+   GENERAL
+   ============================================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+
+html,
+body {
+    width: 100%;
+    min-height: 100%;
+}
+
+
+body {
+
+    font-family:
+        "Segoe UI",
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background: var(--nu-blue);
+
+    overflow-x: hidden;
+}
+
+
+/* ============================================================
+   MAIN SPLIT SCREEN
+   ============================================================ */
+
+.login-wrapper {
+
+    display: grid;
+
+    grid-template-columns: 60% 40%;
+
+    width: 100vw;
+    min-height: 100vh;
+
+}
+
+
+/* ============================================================
+   LEFT SIDE
+   ============================================================ */
+
+.login-brand {
+
+    position: relative;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    min-height: 100vh;
+
+    overflow: hidden;
+
+    background-image:
+        linear-gradient(
+            135deg,
+            rgba(25, 44, 125, 0.18),
+            rgba(53, 64, 143, 0.35)
+        ),
+        url("clinic-background.png");
+
+    background-size: cover;
+
+    background-position: center;
+
+    background-repeat: no-repeat;
+
+}
+
+
+/*
+   Soft white-blue overlay
+*/
+
+.login-brand::before {
+
+    content: "";
+
+    position: absolute;
+
+    inset: 0;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255,255,255,0.10),
+            rgba(53,64,143,0.20)
+        );
+
+    pointer-events: none;
+
+}
+
+
+/*
+   Bottom blue fade
+*/
+
+.login-brand::after {
+
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    height: 35%;
+
+    background:
+        linear-gradient(
+            to top,
+            rgba(13, 31, 105, 0.55),
+            transparent
+        );
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   BRAND CONTENT
+   ============================================================ */
+
+.brand-content {
+
+    position: relative;
+
+    z-index: 5;
+
+    width: 100%;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    padding: 40px;
+
+}
+
+
+/* ============================================================
+   GLASS BRAND CARD
+   ============================================================ */
+
+.brand-glass-card {
+
+    width: min(520px, 90%);
+
+    padding: 48px 45px;
+
+    text-align: center;
+
+    background:
+        rgba(255, 255, 255, 0.68);
+
+    border:
+        1px solid rgba(255, 255, 255, 0.75);
+
+    border-radius: 30px;
+
+    backdrop-filter: blur(12px);
+
+    -webkit-backdrop-filter: blur(12px);
+
+    box-shadow:
+        0 25px 60px rgba(17, 36, 105, 0.20);
+
+    animation:
+        brandAppear 0.9s ease forwards;
+
+}
+
+
+/* ============================================================
+   LOGO
+   ============================================================ */
+
+.logo {
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    margin-bottom: 20px;
+
+}
+
+
+.logo img {
+
+    width: 145px;
+
+    height: 145px;
+
+    object-fit: contain;
+
+    /*
+       Slight transparency so the logo
+       blends naturally with the glass card.
+    */
+
+    opacity: 0.92;
+
+    filter:
+        drop-shadow(
+            0 8px 15px rgba(20, 36, 105, 0.18)
+        );
+
+    transition:
+        transform 0.4s ease,
+        opacity 0.4s ease;
+
+}
+
+
+.logo img:hover {
+
+    transform: translateY(-5px) scale(1.03);
+
+    opacity: 1;
+
+}
+
+
+/* ============================================================
+   BRAND TITLE
+   ============================================================ */
+
+.brand-content h1 {
+
+    font-size: clamp(2.2rem, 4vw, 3rem);
+
+    font-weight: 800;
+
+    letter-spacing: 2px;
+
+    color: var(--text-dark);
+
+    margin-bottom: 14px;
+
+}
+
+
+/* ============================================================
+   GOLD LINE
+   ============================================================ */
+
+.gold-line {
+
+    width: 65px;
+
+    height: 4px;
+
+    margin: 0 auto 20px;
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            90deg,
+            var(--nu-blue),
+            var(--nu-gold)
+        );
+
+}
+
+
+/* ============================================================
+   BRAND DESCRIPTION
+   ============================================================ */
+
+.brand-content p {
+
+    color: #515b78;
+
+    font-size: 1rem;
+
+    line-height: 1.7;
+
+}
+
+
+/* ============================================================
+   BRAND TAGLINE
+   ============================================================ */
+
+.brand-tagline {
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    gap: 10px;
+
+    margin-top: 25px;
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    letter-spacing: 2px;
+
+    color: var(--nu-blue);
+
+}
+
+
+.brand-tagline .separator {
+
+    color: var(--nu-gold);
+
+    font-size: 14px;
+
+}
+
+
+/* ============================================================
+   DECORATIVE DOTS
+   ============================================================ */
+
+.decorative-dots {
+
+    position: absolute;
+
+    z-index: 2;
+
+    width: 120px;
+
+    height: 120px;
+
+    background-image:
+        radial-gradient(
+            rgba(255,255,255,0.65) 2px,
+            transparent 2px
+        );
+
+    background-size: 18px 18px;
+
+    opacity: 0.5;
+
+}
+
+
+.dots-top {
+
+    top: 35px;
+
+    left: 35px;
+
+}
+
+
+/* ============================================================
+   RIGHT SIDE
+   ============================================================ */
+
+.login-form-section {
+
+    position: relative;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    min-height: 100vh;
+
+    padding: 40px;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(
+            circle at 15% 15%,
+            rgba(74, 91, 190, 0.45),
+            transparent 35%
+        ),
+        linear-gradient(
+            145deg,
+            #303e9d,
+            #17266d 65%,
+            #101d5c
+        );
+
+}
+
+
+/* ============================================================
+   DECORATIVE CIRCLES
+   ============================================================ */
+
+.blue-circle {
+
+    position: absolute;
+
+    border-radius: 50%;
+
+    pointer-events: none;
+
+}
+
+
+.circle-one {
+
+    width: 330px;
+    height: 330px;
+
+    right: -190px;
+    top: -80px;
+
+    border:
+        1px solid rgba(255,255,255,0.15);
+
+    box-shadow:
+        0 0 0 35px rgba(255,255,255,0.025),
+        0 0 0 70px rgba(255,255,255,0.02);
+
+}
+
+
+.circle-two {
+
+    width: 220px;
+    height: 220px;
+
+    left: -150px;
+    bottom: -110px;
+
+    background:
+        rgba(247,201,40,0.08);
+
+}
+
+
+/* ============================================================
+   LOGIN CONTAINER
+   ============================================================ */
+
+.login-container {
+
+    position: relative;
+
+    z-index: 5;
+
+    width: 100%;
+
+    max-width: 450px;
+
+    padding: 42px;
+
+    background: rgba(255,255,255,0.98);
+
+    border-radius: 28px;
+
+    box-shadow:
+        0 30px 70px rgba(6, 18, 70, 0.32);
+
+    animation:
+        loginAppear 0.8s ease forwards;
+
+}
+
+
+/* ============================================================
+   LOGIN HEADER
+   ============================================================ */
+
+.login-header {
+
+    text-align: center;
+
+    margin-bottom: 30px;
+
+}
+
+
+.login-icon {
+
+    width: 58px;
+    height: 58px;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    margin: 0 auto 15px;
+
+    border-radius: 50%;
+
+    background:
+        linear-gradient(
+            145deg,
+            #eef1ff,
+            #e1e6ff
+        );
+
+    color: var(--nu-blue);
+
+    font-size: 24px;
+
+}
+
+
+.login-header h2 {
+
+    color: var(--nu-blue);
+
+    font-size: 30px;
+
+    font-weight: 750;
+
+    margin-bottom: 6px;
+
+}
+
+
+.login-subtitle {
+
+    color: var(--text-gray);
+
+    font-size: 14px;
+
+}
+
+
+.header-line {
+
+    width: 55px;
+
+    height: 3px;
+
+    margin: 15px auto 0;
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            90deg,
+            var(--nu-blue),
+            var(--nu-gold)
+        );
+
+}
+
+
+/* ============================================================
+   FORM GROUP
+   ============================================================ */
+
+.form-group {
+
+    margin-bottom: 18px;
+
+}
+
+
+.form-group label {
+
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: var(--text-dark);
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+}
+
+
+/* ============================================================
+   INPUT WRAPPER
+   ============================================================ */
+
+.input-wrapper {
+
+    position: relative;
+
+    width: 100%;
+
+}
+
+
+.input-wrapper > i:first-child {
+
+    position: absolute;
+
+    left: 15px;
+
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    color: #8b94af;
+
+    font-size: 14px;
+
+    pointer-events: none;
+
+    z-index: 2;
+
+}
+
+
+/* ============================================================
+   INPUTS / SELECT
+   ============================================================ */
+
+.input-wrapper input,
+.input-wrapper select {
+
+    width: 100%;
+
+    height: 48px;
+
+    padding:
+        0 42px;
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 11px;
+
+    background: #fbfcff;
+
+    color: var(--text-dark);
+
+    font-size: 14px;
+
+    font-family: inherit;
+
+    transition:
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        background 0.25s ease;
+
+}
+
+
+.input-wrapper input::placeholder {
+
+    color: #a0a7ba;
+
+}
+
+
+.input-wrapper input:focus,
+.input-wrapper select:focus {
+
+    outline: none;
+
+    background: white;
+
+    border-color: var(--nu-blue);
+
+    box-shadow:
+        0 0 0 4px rgba(53,64,143,0.08);
+
+}
+
+
+/* ============================================================
+   SELECT
+   ============================================================ */
+
+.input-wrapper select {
+
+    appearance: none;
+
+    -webkit-appearance: none;
+
+    cursor: pointer;
+
+}
+
+
+.select-arrow {
+
+    position: absolute;
+
+    right: 16px;
+
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    color: #8b94af;
+
+    font-size: 12px;
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   PASSWORD
+   ============================================================ */
+
+.password-toggle {
+
+    position: absolute;
+
+    right: 15px;
+
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    color: #8b94af;
+
+    cursor: pointer;
+
+    z-index: 3;
+
+    transition:
+        color 0.2s ease;
+
+}
+
+
+.password-toggle:hover {
+
+    color: var(--nu-blue);
+
+}
+
+
+/* ============================================================
+   ERRORS
+   ============================================================ */
+
+.error {
+
+    display: block;
+
+    min-height: 0;
+
+    margin-top: 5px;
+
+    color: var(--error);
+
+    font-size: 11px;
+
+}
+
+
+.error-border {
+
+    border-color:
+        var(--error) !important;
+
+    box-shadow:
+        0 0 0 3px rgba(220,53,69,0.07) !important;
+
+}
+
+
+.success-border {
+
+    border-color:
+        var(--success) !important;
+
+}
+
+
+/* ============================================================
+   RFID LOGIN
+   ============================================================ */
+
+.rfid-login {
+
+    display: grid;
+
+    grid-template-columns:
+        auto 1fr auto;
+
+    align-items: center;
+
+    gap: 14px;
+
+    margin-top: 25px;
+
+    padding: 16px;
+
+    border:
+        1px solid #dce2f5;
+
+    border-radius: 16px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8f9ff,
+            #f0f3ff
+        );
+
+    position: relative;
+
+    overflow: hidden;
+
+}
+
+
+/*
+   RFID subtle shine
+*/
+
+.rfid-login::before {
+
+    content: "";
+
+    position: absolute;
+
+    top: 0;
+    left: -100%;
+
+    width: 70%;
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,0.6),
+            transparent
+        );
+
+    animation:
+        rfidShine 4s infinite;
+
+}
+
+
+/* ============================================================
+   RFID ICON
+   ============================================================ */
+
+.rfid-icon {
+
+    position: relative;
+
+    width: 48px;
+    height: 48px;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    border-radius: 14px;
+
+    background:
+        var(--nu-blue);
+
+    color: white;
+
+    font-size: 20px;
+
+    flex-shrink: 0;
+
+}
+
+
+/* RFID pulse */
+
+.rfid-pulse {
+
+    position: absolute;
+
+    width: 48px;
+    height: 48px;
+
+    border-radius: 14px;
+
+    border:
+        2px solid rgba(53,64,143,0.5);
+
+    animation:
+        rfidPulse 2s infinite;
+
+}
+
+
+/* ============================================================
+   RFID INFORMATION
+   ============================================================ */
+
+.rfid-information {
+
+    min-width: 0;
+
+}
+
+
+.rfid-information h3 {
+
+    color: var(--text-dark);
+
+    font-size: 14px;
+
+    margin-bottom: 4px;
+
+}
+
+
+.rfid-information p {
+
+    color: var(--text-gray);
+
+    font-size: 11px;
+
+    line-height: 1.4;
+
+}
+
+
+/* ============================================================
+   RFID STATUS
+   ============================================================ */
+
+.rfid-status-box {
+
+    text-align: right;
+
+    min-width: 75px;
+
+}
+
+
+.rfid-status-box > span {
+
+    display: block;
+
+    color: #8b94af;
+
+    font-size: 9px;
+
+    font-weight: 700;
+
+    letter-spacing: 1px;
+
+}
+
+
+.rfid-status-box strong {
+
+    display: block;
+
+    margin-top: 3px;
+
+    color: var(--nu-blue);
+
+    font-size: 12px;
+
+    letter-spacing: 1px;
+
+}
+
+
+/* ============================================================
+   READY INDICATOR
+   ============================================================ */
+
+.status-indicator {
+
+    display: flex;
+
+    justify-content: flex-end;
+    align-items: center;
+
+    gap: 5px;
+
+    margin-top: 5px;
+
+    color: #6d7690;
+
+    font-size: 9px;
+
+}
+
+
+.status-indicator span {
+
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: #28a745;
+
+    box-shadow:
+        0 0 0 3px rgba(40,167,69,0.12);
+
+}
+
+
+/* ============================================================
+   LOGIN BUTTON
+   ============================================================ */
+
+.login-button {
+
+    position: relative;
+
+    width: 100%;
+
+    height: 50px;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    gap: 10px;
+
+    margin-top: 22px;
+
+    border: none;
+
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #3f4fb0,
+            #293995
+        );
+
+    color: white;
+
+    font-family: inherit;
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 8px 20px rgba(53,64,143,0.25);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+
+}
+
+
+.login-button::before {
+
+    content: "";
+
+    position: absolute;
+
+    top: 0;
+    left: -100%;
+
+    width: 60%;
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,0.2),
+            transparent
+        );
+
+    transition:
+        left 0.5s ease;
+
+}
+
+
+.login-button:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 12px 25px rgba(53,64,143,0.35);
+
+}
+
+
+.login-button:hover::before {
+
+    left: 130%;
+
+}
+
+
+.login-button:active {
+
+    transform: translateY(0);
+
+}
+
+
+/* ============================================================
+   SIGN UP
+   ============================================================ */
+
+.signup-link {
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    gap: 5px;
+
+    margin-top: 20px;
+
+    color: #737b95;
+
+    font-size: 13px;
+
+}
+
+
+.signup-link a {
+
+    color: var(--nu-blue);
+
+    text-decoration: none;
+
+    font-weight: 700;
+
+}
+
+
+.signup-link a:hover {
+
+    color: var(--nu-dark-blue);
+
+    text-decoration: underline;
+
+}
+
+
+/* ============================================================
+   LOGIN MESSAGE
+   ============================================================ */
+
+#loginMessage {
+
+    text-align: center;
+
+    margin-top: 12px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+}
+
+
+.login-error {
+
+    color: var(--error);
+
+}
+
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.login-footer {
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    gap: 6px;
+
+    margin-top: 24px;
+
+    padding-top: 18px;
+
+    border-top:
+        1px solid #edf0f7;
+
+    color: #9aa1b5;
+
+    font-size: 10px;
+
+}
+
+
+.login-footer i {
+
+    font-size: 9px;
+
+}
+
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes loginAppear {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(20px)
+            scale(0.98);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+
+    }
+
+}
+
+
+@keyframes brandAppear {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(25px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0);
+
+    }
+
+}
+
+
+@keyframes rfidPulse {
+
+    0% {
+
+        transform: scale(1);
+
+        opacity: 0.7;
+
+    }
+
+    70% {
+
+        transform: scale(1.35);
+
+        opacity: 0;
+
+    }
+
+    100% {
+
+        transform: scale(1.35);
+
+        opacity: 0;
+
+    }
+
+}
+
+
+@keyframes rfidShine {
+
+    0% {
+
+        left: -100%;
+
+    }
+
+    20%,
+    100% {
+
+        left: 130%;
+
+    }
+
+}
+
+
+/* ============================================================
+   RESPONSIVE DESIGN
+   ============================================================ */
+
+@media (max-width: 1000px) {
+
+    .login-wrapper {
+
+        grid-template-columns: 50% 50%;
+
+    }
+
+    .brand-glass-card {
+
+        padding: 35px 25px;
+
+    }
+
+    .logo img {
+
+        width: 120px;
+        height: 120px;
+
+    }
+
+}
+
+
+@media (max-width: 768px) {
+
+    .login-wrapper {
+
+        display: block;
+
+    }
+
+
+    .login-brand {
+
+        min-height: 430px;
+
+    }
+
+
+    .login-form-section {
+
+        min-height: auto;
+
+        padding: 50px 20px;
+
+    }
+
+
+    .brand-glass-card {
+
+        width: 92%;
+
+        padding: 35px 25px;
+
+    }
+
+
+    .brand-content h1 {
+
+        font-size: 2rem;
+
+    }
+
+
+    .login-container {
+
+        max-width: 500px;
+
+        padding: 32px 25px;
+
+    }
+
+}
+
+
+@media (max-width: 480px) {
+
+    .login-brand {
+
+        min-height: 380px;
+
+    }
+
+
+    .brand-glass-card {
+
+        padding: 30px 18px;
+
+        border-radius: 22px;
+
+    }
+
+
+    .logo img {
+
+        width: 105px;
+        height: 105px;
+
+    }
+
+
+    .brand-content h1 {
+
+        font-size: 1.7rem;
+
+        letter-spacing: 1px;
+
+    }
+
+
+    .brand-content p {
+
+        font-size: 13px;
+
+    }
+
+
+    .brand-tagline {
+
+        font-size: 8px;
+
+    }
+
+
+    .login-form-section {
+
+        padding: 30px 15px;
+
+    }
+
+
+    .login-container {
+
+        padding: 28px 20px;
+
+        border-radius: 22px;
+
+    }
+
+
+    .login-header h2 {
+
+        font-size: 26px;
+
+    }
+
+
+    .rfid-login {
+
+        grid-template-columns: auto 1fr;
+
+    }
+
+
+    .rfid-status-box {
+
+        grid-column: 2;
+
+        text-align: left;
+
+        margin-top: -5px;
+
+    }
+
+
+    .status-indicator {
+
+        justify-content: flex-start;
+
+    }
+
+}
