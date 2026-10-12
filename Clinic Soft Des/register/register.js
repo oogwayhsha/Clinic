@@ -12,7 +12,11 @@ let currentRole = "student";
 const REQUIRE_NU_EMAIL = false;
 
 const registerForm = document.getElementById("registerForm");
+const registerBtn = document.getElementById("registerBtn");
 const regMessage = document.getElementById("regMessage");
+
+// Prevents double submissions (e.g. Enter key + button click)
+let isSubmitting = false;
 
 // ==========================================
 // ERROR HELPERS
@@ -87,8 +91,8 @@ const INPUT_RULES = {
   // Letters (incl. accented), spaces, . ' -
   regName:        { block: /[^A-Za-zÀ-ÿ.'\- ]/g,            max: 60 },
 
-  // Digits and hyphen only (e.g. 2022-123456)
-  studentId:      { block: /[^0-9-]/g,                       max: 11 },
+  // Digits and hyphen only (e.g. 2022-1234567) -> 4 + hyphen + 7 = 12 chars
+  studentId:      { block: /[^0-9-]/g,                       max: 12 },
 
   // Letters, spaces, & . - ( )
   studentProgram: { block: /[^A-Za-z&.\-() ]/g,             max: 40 },
@@ -199,10 +203,12 @@ window.switchRole = function (role) {
 };
 
 // ==========================================
-// FORM SUBMISSION & VALIDATION
+// REGISTRATION HANDLER (validation + Firebase)
 // ==========================================
-registerForm.addEventListener("submit", async function (event) {
-  event.preventDefault();
+// Runs from a plain button click (not a form "submit" event) so Chrome's
+// "save password" prompt isn't triggered by invalid attempts.
+async function handleRegister() {
+  if (isSubmitting) return;
 
   clearErrors();
 
@@ -244,13 +250,13 @@ registerForm.addEventListener("submit", async function (event) {
     studentProgram = document.getElementById("studentProgram").value.trim();
     studentYear = document.getElementById("studentYear").value;
 
-    // Pattern for format like 2022-123456
-    const studentIdPattern = /^\d{4}-\d{6}$/;
+    // Pattern for format like 2022-1234567 (4 digits, hyphen, 7 digits)
+    const studentIdPattern = /^\d{4}-\d{7}$/;
 
     if (studentId === "") {
       fail("studentId", "Student ID is required.");
     } else if (!studentIdPattern.test(studentId)) {
-      fail("studentId", "Invalid format. Use YYYY-XXXXXX (e.g., 2022-123456).");
+      fail("studentId", "Invalid format. Use YYYY-XXXXXXX (e.g., 2022-1234567).");
     }
 
     if (studentProgram === "") {
@@ -282,12 +288,20 @@ registerForm.addEventListener("submit", async function (event) {
     fail("regEmail", "Email address is required.");
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     fail("regEmail", "Enter a valid email address.");
-  } else if (REQUIRE_NU_EMAIL) {
+  } else {
     const lower = email.toLowerCase();
-    if (currentRole === "student" && !lower.endsWith("@students.nu-fairview.edu.ph")) {
-      fail("regEmail", "Use your NU student email (@students.nu-fairview.edu.ph).");
-    } else if (currentRole === "employee" && !lower.endsWith("@nu-fairview.edu.ph")) {
-      fail("regEmail", "Use your NU employee email (@nu-fairview.edu.ph).");
+
+    // Always enforced: employees/staff cannot use a student email
+    if (currentRole === "employee" && lower.includes("@students")) {
+      fail("regEmail", "Student emails (@students...) can't be used for Employee / Staff registration.");
+    }
+    // Optional strict NU-domain check (controlled by REQUIRE_NU_EMAIL)
+    else if (REQUIRE_NU_EMAIL) {
+      if (currentRole === "student" && !lower.endsWith("@students.nu-fairview.edu.ph")) {
+        fail("regEmail", "Use your NU student email (@students.nu-fairview.edu.ph).");
+      } else if (currentRole === "employee" && !lower.endsWith("@nu-fairview.edu.ph")) {
+        fail("regEmail", "Use your NU employee email (@nu-fairview.edu.ph).");
+      }
     }
   }
 
@@ -319,6 +333,9 @@ registerForm.addEventListener("submit", async function (event) {
   // ==========================================
   // FIREBASE REGISTRATION
   // ==========================================
+  isSubmitting = true;
+  if (registerBtn) registerBtn.disabled = true;
+
   try {
     // 1. Create Firebase Account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -385,8 +402,27 @@ registerForm.addEventListener("submit", async function (event) {
         showGlobalError("Registration failed. Please try again.");
         break;
     }
+  } finally {
+    isSubmitting = false;
+    if (registerBtn) registerBtn.disabled = false;
+  }
+}
+
+// Button click starts registration
+if (registerBtn) {
+  registerBtn.addEventListener("click", handleRegister);
+}
+
+// Keep the Enter key working inside the form
+registerForm.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+    e.preventDefault();
+    handleRegister();
   }
 });
+
+// Safety net: never let the browser do a native form submit
+registerForm.addEventListener("submit", (e) => e.preventDefault());
 
 // ==========================================
 // PASSWORD TOGGLE EYE FUNCTION
