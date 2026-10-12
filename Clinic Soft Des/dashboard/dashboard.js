@@ -1,7 +1,7 @@
 // ==========================================
 // FIREBASE IMPORTS
 // ==========================================
-import { auth, db } from "../../Software Activity/firebase.js";
+import { auth, db } from "../firebase/firebase.js";
 
 import {
     onAuthStateChanged,
@@ -38,7 +38,7 @@ const PAGES = {
 // ==========================================
 // DASHBOARD + SHARED PAGE HANDLER
 // ==========================================
-document.addEventListener("DOMContentLoaded", () => {
+function initDashboard() {
 
     // ==========================================
     // ELEMENT SELECTORS
@@ -253,35 +253,96 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // ==========================================
-    // NAVIGATION
+    // NAVIGATION (Clicks + ScrollSpy)
     // ==========================================
 
+    function setActiveTab(targetHref) {
+        navLinks.forEach((item) => {
+            const itemHref = item.getAttribute("href");
+            const isHome = targetHref === "#" || targetHref === "#home" || !targetHref;
+            const matches = isHome
+                ? (itemHref === "#" || itemHref === "#home")
+                : (itemHref === targetHref);
+
+            item.classList.toggle("active", matches);
+
+            // Keep active pill scrolled into view horizontally on mobile
+            if (matches && item.closest(".page-tabs")) {
+                item.scrollIntoView({
+                    behavior: "smooth",
+                    inline: "center",
+                    block: "nearest"
+                });
+            }
+        });
+    }
+
+    let isClickScrolling = false;
+    let scrollTimeout = null;
+
     navLinks.forEach((link) => {
-
         link.addEventListener("click", (e) => {
-
             e.preventDefault();
 
             const href = link.getAttribute("href");
+            setActiveTab(href);
 
-            navLinks.forEach((item) => {
-                item.classList.toggle(
-                    "active",
-                    item.getAttribute("href") === href
-                );
-            });
+            // Temporarily pause scroll spy while smooth scrolling
+            isClickScrolling = true;
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                isClickScrolling = false;
+            }, 800);
 
-            if (href && href.length > 1 && href.startsWith("#")) {
-                document.querySelector(href)?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start"
-                });
+            if (href && href.length > 1 && href.startsWith("#") && href !== "#home") {
+                const targetEl = document.querySelector(href);
+                if (targetEl) {
+                    targetEl.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+                }
             } else {
                 window.scrollTo({ top: 0, behavior: "smooth" });
             }
         });
-
     });
+
+    // ScrollSpy: highlight section as user scrolls
+    const spySections = [
+        { href: "#services", el: document.getElementById("services") },
+        { href: "#schedule", el: document.getElementById("schedule") },
+        { href: "#clinic-info", el: document.getElementById("clinic-info") }
+    ];
+
+    function handleScrollSpy() {
+        if (isClickScrolling) return;
+
+        // If reached bottom of page, activate last tab
+        const atBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 60);
+        if (atBottom) {
+            setActiveTab("#clinic-info");
+            return;
+        }
+
+        let currentHref = "#";
+        // Iterate backwards so lower sections take precedence when reached
+        for (let i = spySections.length - 1; i >= 0; i--) {
+            const sec = spySections[i];
+            if (sec.el) {
+                const rect = sec.el.getBoundingClientRect();
+                // 160px accounts for sticky header + tabs height
+                if (rect.top <= 160) {
+                    currentHref = sec.href;
+                    break;
+                }
+            }
+        }
+
+        setActiveTab(currentHref);
+    }
+
+    window.addEventListener("scroll", handleScrollSpy, { passive: true });
 
 
     // ==========================================
@@ -557,5 +618,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+}
 
-});
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initDashboard);
+} else {
+    initDashboard();
+}

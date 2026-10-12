@@ -1,7 +1,7 @@
 // ==========================================
 // ADMIN: oversee all student and employee appointments
 // ==========================================
-import { auth, db } from "../../Software Activity/firebase.js";
+import { auth, db } from "../firebase/firebase.js";
 
 import {
     onAuthStateChanged,
