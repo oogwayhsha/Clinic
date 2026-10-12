@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Appointments | University Clinic</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../appointment/appointments.css">
+</head>
+
+<body data-role="employee">
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+        <a href="../dashboard/dashboard.html" class="brand" aria-label="University Clinic home">
+            <img src="nufvlogo.png" alt="University Logo">
+
+            <div>
+                <h1>University Clinic</h1>
+                <span>Staff Portal</span>
+            </div>
+        </a>
+
+
+        <nav class="desktop-nav">
+
+            <a href="../dashboard/dashboard.html">Home</a>
+
+            <a href="../appointment/appointments.html" class="active">Appointments</a>
+
+            <a href="employee-profile.html" class="nav-profile-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Profile</span>
+            </a>
+
+            <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
+
+        </nav>
+
+
+        <!-- Mobile header buttons -->
+        <div class="mobile-header-btns">
+
+            <a href="../dashboard/dashboard.html" class="mobile-icon-btn" aria-label="Home" title="Home">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+            </a>
+
+            <a href="employee-profile.html" class="mobile-icon-btn" aria-label="My Profile" title="Profile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </a>
+
+            <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="page-container">
+
+        <!-- PAGE HEADER -->
+        <section class="page-header">
+
+            <div>
+                <span class="page-label">APPOINTMENTS</span>
+                <h2>Appointments</h2>
+                <p>Book a visit with the clinic and keep track of your upcoming appointments.</p>
+            </div>
+
+            <a href="../dashboard/dashboard.html" class="back-btn">← Back to Home</a>
+
+        </section>
+
+
+        <!-- TABS -->
+        <div class="tabs" role="tablist" aria-label="Appointment sections">
+
+            <button type="button" class="tab active" id="tabBook" role="tab" aria-selected="true" aria-controls="panelBook">
+                Book Appointment
+            </button>
+
+            <button type="button" class="tab" id="tabMine" role="tab" aria-selected="false" aria-controls="panelMine">
+                My Appointments
+                <span class="tab-count" id="tabCount" hidden>0</span>
+            </button>
+
+        </div>
+
+
+        <!-- ===================== BOOK ===================== -->
+        <section id="panelBook" role="tabpanel" aria-labelledby="tabBook">
+
+            <div class="book-layout">
+
+                <div class="book-steps">
+
+                    <!-- STEP 1: SERVICE -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">STEP 1</span>
+                            <h3>Choose a service</h3>
+                        </div>
+
+                        <div class="service-options" id="serviceOptions"></div>
+                    </section>
+
+
+                    <!-- STEP 2: DATE -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">STEP 2</span>
+                            <h3>Pick a date</h3>
+                            <p>Appointments can be booked up to two weeks ahead.</p>
+                        </div>
+
+                        <div class="day-list" id="dayList"></div>
+                    </section>
+
+
+                    <!-- STEP 3: TIME -->
+                    <section class="card">
+                        <div class="card-header split">
+                            <div>
+                                <span class="section-label">STEP 3</span>
+                                <h3>Select a time</h3>
+                            </div>
+                            <span class="slot-meta" id="slotMeta"></span>
+                        </div>
+
+                        <div id="slotList"></div>
+                    </section>
+
+
+                    <!-- STEP 4: DETAILS -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">STEP 4</span>
+                            <h3>Reason for visit</h3>
+                            <p>Optional, but it helps the clinic prepare for your visit.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reason">Tell us briefly what you need</label>
+                            <textarea id="reason" maxlength="300" placeholder="e.g. Headache and fever since yesterday"></textarea>
+                            <span class="char-count" id="reasonCount">0 / 300</span>
+                        </div>
+                    </section>
+
+                </div>
+
+
+                <!-- SUMMARY -->
+                <aside class="summary card" aria-label="Appointment summary">
+
+                    <div class="card-header">
+                        <span class="section-label">SUMMARY</span>
+                        <h3>Your appointment</h3>
+                    </div>
+
+                    <dl class="summary-list">
+                        <div class="summary-row">
+                            <dt>Service</dt>
+                            <dd id="sumService" class="empty">Not selected</dd>
+                        </div>
+                        <div class="summary-row">
+                            <dt>Date</dt>
+                            <dd id="sumDate" class="empty">Not selected</dd>
+                        </div>
+                        <div class="summary-row">
+                            <dt>Time</dt>
+                            <dd id="sumTime" class="empty">Not selected</dd>
+                        </div>
+                        <div class="summary-row">
+                            <dt>Patient</dt>
+                            <dd id="sumPatient">Loading...</dd>
+                        </div>
+                    </dl>
+
+                    <button type="button" class="btn-primary block" id="confirmBtn" disabled>
+                        Confirm Appointment
+                    </button>
+
+                    <p class="summary-note">
+                        Please arrive 10 minutes early and bring your ID.
+                        You can cancel anytime from the My Appointments tab.
+                    </p>
+
+                </aside>
+
+            </div>
+
+        </section>
+
+
+        <!-- ===================== MY APPOINTMENTS ===================== -->
+        <section id="panelMine" role="tabpanel" aria-labelledby="tabMine" hidden>
+
+            <div class="filters" id="filters" role="group" aria-label="Filter appointments">
+                <button type="button" class="filter active" data-filter="upcoming">Upcoming <span id="countUpcoming">0</span></button>
+                <button type="button" class="filter" data-filter="past">Past <span id="countPast">0</span></button>
+                <button type="button" class="filter" data-filter="cancelled">Cancelled <span id="countCancelled">0</span></button>
+            </div>
+
+            <div id="appointmentList" aria-live="polite">
+                <div class="empty-state"><p>Loading your appointments...</p></div>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer>
+        <p>© 2026 University Clinic. All rights reserved.</p>
+    </footer>
+
+
+    <!-- CANCEL CONFIRMATION MODAL -->
+    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">APPOINTMENT</span>
+                    <h3 id="cancelTitle">Cancel this appointment?</h3>
+                </div>
+
+                <button type="button" id="cancelModalClose" class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="cancelDetail"></p>
+
+            <div class="modal-actions">
+                <button type="button" id="cancelKeep" class="cancel-btn">Keep appointment</button>
+                <button type="button" id="cancelConfirm" class="danger-btn">Yes, cancel it</button>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- TOASTS -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+
+    <script type="module" src="../appointment/appointments.js"></script>
+
+</body>
+</html>

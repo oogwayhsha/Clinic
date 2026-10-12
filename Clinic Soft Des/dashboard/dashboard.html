@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Clinic Appointment System</title>
+    <!-- Google Fonts: Outfit (Primary & Headings) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        /* Keep the header fixed/sticky at the top with a solid white background */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-wrapper">
+        <!-- Main Scrollable Content Container -->
+        <div class="dashboard-container">
+
+            <!-- Top Header -->
+            <header class="header">
+                <div class="brand">
+                    <img src="nufvlogo.png" alt="University Clinic Logo" class="brand-logo">
+                    <div class="brand-text">
+                        <h1>UNIVERSITY CLINIC</h1>
+                        <p>APPOINTMENT SYSTEM</p>
+                    </div>
+                </div>
+
+                <!-- Desktop Navigation Links -->
+                <nav class="desktop-nav">
+                    <ul>
+                        <li><a href="#" class="active">Home</a></li>
+                        <li><a href="#services">Services</a></li>
+                        <li><a href="#schedule">Schedule</a></li>
+                        <li><a href="#clinic-info">Clinic Information</a></li>
+                    </ul>
+                </nav>
+
+                <!-- Desktop Header Actions (Profile + Logout) -->
+                <div class="desktop-header-actions">
+                    <a href="profile.html" class="desktop-profile-btn" id="deskProfileBtn" aria-label="User Profile" title="Profile">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Profile</span>
+                    </a>
+
+                    <a href="../login/login.html" class="desktop-logout-btn" id="desktopLogoutBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Log Out</span>
+                    </a>
+                </div>
+
+                <!-- Mobile Action Buttons -->
+                <div class="mobile-header-btns">
+                    <a href="../login/login.html" class="mobile-logout-btn" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </a>
+                    <a href="profile.html" class="profile-btn" aria-label="User Profile" id="profileBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </a>
+                </div>
+            </header>
+
+            <!-- Mobile section tabs (shown on phones/tablets only) -->
+            <nav class="page-tabs" aria-label="Sections">
+                <a href="#" class="active">Home</a>
+                <a href="#services">Services</a>
+                <a href="#schedule">Schedule</a>
+                <a href="#clinic-info">Clinic Info</a>
+            </nav>
+
+            <!-- Hero/Welcome Section -->
+            <section class="hero-section">
+                <!-- Curved Building Image Container -->
+                <div class="hero-image-container">
+                    <div class="hero-image"></div>
+
+                    <!-- Desktop Bottom Wave Overlay -->
+                    <svg class="desktop-wave" viewBox="0 0 500 150" preserveAspectRatio="none">
+                        <path d="M0,80 C150,150 350,20 500,100 L500,150 L0,150 Z" fill="#0b1c4e"></path>
+                        <path d="M0,80 C150,150 350,20 500,100" fill="none" stroke="#c87c28" stroke-width="3"></path>
+                    </svg>
+
+                    <!-- Desktop Heart/Priority Badge in Wave -->
+                    <div class="desktop-priority-badge">
+                        <div class="badge-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                            </svg>
+                        </div>
+                        <div class="badge-text">
+                            <strong>Your health.</strong>
+                            <strong>Our priority.</strong>
+                            <span>We're here for you. 💛</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Welcome Panel (White Cloud Container) -->
+                <div class="hero-content">
+                    <!-- Welcome Badge (Desktop only) -->
+                    <div class="welcome-badge">
+                        <div class="badge-icon-home">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </div>
+                        <span>Welcome to University Clinic</span>
+                    </div>
+
+                    <h2 class="welcome-text">
+                        <span class="welcome-to-text">Welcome to<br></span>
+                        <span class="highlight-blue">Better care.</span><br>
+                        <span class="highlight-gold">Made simple.</span>
+                    </h2>
+
+                    <div class="accent-line"></div>
+
+                    <div class="hero-description-wrapper">
+                        <p class="hero-description">
+                            Book appointments, manage your schedule, and get quality care — all in one place.
+                        </p>
+                    </div>
+
+                    <!-- Desktop Hero Action Buttons -->
+                    <div class="desktop-hero-actions">
+                        <button class="action-btn-primary" id="deskBookBtn">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                                <line x1="12" y1="14" x2="12" y2="18"></line>
+                                <line x1="10" y1="16" x2="14" y2="16"></line>
+                            </svg>
+                            <span>Book an Appointment</span>
+                            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+
+                        <button class="action-btn-secondary" id="deskViewBtn">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                            <span>View My Appointments</span>
+                            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features Grid (Horizontal Card) -->
+            <section class="features-card">
+                <div class="feature-item">
+                    <div class="feature-icon-wrapper f-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                            <line x1="12" y1="14" x2="12" y2="18"></line>
+                            <line x1="10" y1="16" x2="14" y2="16"></line>
+                        </svg>
+                    </div>
+                    <div class="feature-text-group">
+                        <span class="feature-label">Easy Booking</span>
+                        <p class="feature-desc">Book your appointments quickly and anytime.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon-wrapper f-green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <div class="feature-text-group">
+                        <span class="feature-label">Real-time Availability</span>
+                        <p class="feature-desc">Check available slots in real-time.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon-wrapper f-orange">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                    </div>
+                    <div class="feature-text-group">
+                        <span class="feature-label">Smart Reminders</span>
+                        <p class="feature-desc">Get reminders so you never miss an appointment.</p>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon-wrapper f-purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <polyline points="9 11 11 13 15 9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="feature-text-group">
+                        <span class="feature-label">Secure & Private</span>
+                        <p class="feature-desc">Your data is safe with us.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Actions Container (Mobile only) -->
+            <section class="actions-section">
+                <!-- Action: Book Appointment -->
+                <button class="action-card action-primary" id="bookAppointmentBtn">
+                    <div class="action-icon-container">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                            <line x1="12" y1="14" x2="12" y2="18"></line>
+                            <line x1="10" y1="16" x2="14" y2="16"></line>
+                        </svg>
+                    </div>
+                    <div class="action-info">
+                        <h3>Book an Appointment</h3>
+                        <p>Find a time that works for you</p>
+                    </div>
+                    <div class="action-arrow circle-arrow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </div>
+                </button>
+
+                <!-- Action: View Appointments -->
+                <button class="action-card action-secondary" id="viewAppointmentsBtn">
+                    <div class="action-icon-container">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                    </div>
+                    <div class="action-info">
+                        <h3>View My Appointments</h3>
+                        <p>Check your upcoming appointments</p>
+                    </div>
+                    <div class="action-arrow chevron-arrow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </button>
+            </section>
+
+            <!-- Services Intro Section (Desktop only) -->
+            <section class="services-intro" id="services">
+                <div class="services-heart-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        <path d="M12 13h1v-4h-1v4z"></path>
+                        <path d="M3.5 12h3l2.5-5 3 10 2-7 1.5 2h5"></path>
+                    </svg>
+                </div>
+                <div class="services-title-wrapper">
+                    <div class="title-line"></div>
+                    <h2>Our Services</h2>
+                    <div class="title-line"></div>
+                </div>
+                <p>We are dedicated to providing quality care for every student.</p>
+            </section>
+
+            <!-- Services Grid (clickable cards) -->
+            <section class="services-grid" aria-label="Clinic services">
+
+                <!-- Medical Consultation -->
+                <a href="booking.html?service=consultation" class="service-card" data-service="consultation">
+                    <div class="service-icon blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                        </svg>
+                    </div>
+                    <h3>Medical Consultation</h3>
+                    <p>See a physician for check-ups, illness, and other health concerns.</p>
+                    <span class="service-link">
+                        Book now
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </span>
+                </a>
+
+                <!-- Dental Services -->
+                <a href="booking.html?service=dental" class="service-card" data-service="dental">
+                    <div class="service-icon teal">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7 4c-2.2 0-4 1.8-4 4.2 0 1.7.6 2.8 1.1 4.3C4.6 14.4 5 20 7 20c1.6 0 1.5-4 3-4h4c1.5 0 1.4 4 3 4 2 0 2.4-5.6 2.9-7.5.5-1.5 1.1-2.6 1.1-4.3C21 5.8 19.2 4 17 4c-1.5 0-2.5 1-5 1S8.5 4 7 4z"></path>
+                        </svg>
+                    </div>
+                    <h3>Dental Services</h3>
+                    <p>Dental check-ups, cleaning, and basic oral care.</p>
+                    <span class="service-link">
+                        Book now
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </span>
+                </a>
+
+                <!-- Medical Certificate -->
+                <a href="booking.html?service=certificate" class="service-card" data-service="certificate">
+                    <div class="service-icon orange">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <polyline points="9 15 11 17 15 13"></polyline>
+                        </svg>
+                    </div>
+                    <h3>Medical Certificate</h3>
+                    <p>Request health clearances and medical certificates.</p>
+                    <span class="service-link">
+                        Book now
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </span>
+                </a>
+            </section>
+
+            <!-- Schedule -->
+            <section class="page-container" id="schedule">
+
+                <div class="page-header">
+                    <div>
+                        <span class="page-label">SCHEDULE</span>
+                        <h2>Clinic Schedule</h2>
+                        <p>Check when the clinic is open and when each service is available before you book.</p>
+                    </div>
+                </div>
+
+                <!-- Live open / closed status (filled in by dashboard.js) -->
+                <div class="status-banner" id="clinicStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking clinic hours...</span>
+                </div>
+
+                <!-- OPERATING HOURS -->
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="section-label">HOURS</span>
+                        <h3>Operating Hours</h3>
+                    </div>
+
+                    <!--
+                        Edit the times here. data-open / data-close use 24-hour time
+                        (e.g. 17:00). Leave them off a row to mark that day as closed.
+                    -->
+                    <table class="hours-table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-day="1" data-name="Monday" data-open="08:00" data-close="17:00">
+                                <td>Monday</td><td>8:00 AM – 5:00 PM</td>
+                            </tr>
+                            <tr data-day="2" data-name="Tuesday" data-open="08:00" data-close="17:00">
+                                <td>Tuesday</td><td>8:00 AM – 5:00 PM</td>
+                            </tr>
+                            <tr data-day="3" data-name="Wednesday" data-open="08:00" data-close="17:00">
+                                <td>Wednesday</td><td>8:00 AM – 5:00 PM</td>
+                            </tr>
+                            <tr data-day="4" data-name="Thursday" data-open="08:00" data-close="17:00">
+                                <td>Thursday</td><td>8:00 AM – 5:00 PM</td>
+                            </tr>
+                            <tr data-day="5" data-name="Friday" data-open="08:00" data-close="17:00">
+                                <td>Friday</td><td>8:00 AM – 5:00 PM</td>
+                            </tr>
+                            <tr data-day="6" data-name="Saturday" data-open="08:00" data-close="12:00">
+                                <td>Saturday</td><td>8:00 AM – 12:00 PM</td>
+                            </tr>
+                            <tr data-day="0" data-name="Sunday">
+                                <td>Sunday</td><td class="closed-text">Closed</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </section>
+
+                <!-- SERVICE AVAILABILITY -->
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="section-label">SERVICES</span>
+                        <h3>Service Availability</h3>
+                        <p>Some services are only offered on certain days.</p>
+                    </div>
+
+                    <ul class="availability-list">
+
+                        <li class="availability-item">
+                            <div>
+                                <strong>Medical Consultation</strong>
+                                <span class="time">8:00 AM – 4:30 PM</span>
+                            </div>
+                            <div class="day-chips">
+                                <span class="day-chip">Mon</span>
+                                <span class="day-chip">Tue</span>
+                                <span class="day-chip">Wed</span>
+                                <span class="day-chip">Thu</span>
+                                <span class="day-chip">Fri</span>
+                                <span class="day-chip off">Sat</span>
+                            </div>
+                        </li>
+
+                        <li class="availability-item">
+                            <div>
+                                <strong>Dental Services</strong>
+                                <span class="time">9:00 AM – 4:00 PM</span>
+                            </div>
+                            <div class="day-chips">
+                                <span class="day-chip">Mon</span>
+                                <span class="day-chip off">Tue</span>
+                                <span class="day-chip">Wed</span>
+                                <span class="day-chip off">Thu</span>
+                                <span class="day-chip">Fri</span>
+                                <span class="day-chip off">Sat</span>
+                            </div>
+                        </li>
+
+                        <li class="availability-item">
+                            <div>
+                                <strong>Medical Certificate</strong>
+                                <span class="time">8:00 AM – 11:00 AM, 1:00 PM – 4:00 PM</span>
+                            </div>
+                            <div class="day-chips">
+                                <span class="day-chip">Mon</span>
+                                <span class="day-chip">Tue</span>
+                                <span class="day-chip">Wed</span>
+                                <span class="day-chip">Thu</span>
+                                <span class="day-chip">Fri</span>
+                                <span class="day-chip off">Sat</span>
+                            </div>
+                        </li>
+
+                    </ul>
+
+                </section>
+
+                <!-- NOTICE -->
+                <div class="notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <div>
+                        Schedules may change during holidays, examinations and school events.
+                        Booking an appointment is recommended to avoid long waiting times.
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Clinic Information -->
+            <section class="page-container" id="clinic-info">
+
+                <div class="page-header">
+                    <div>
+                        <span class="page-label">CLINIC INFORMATION</span>
+                        <h2>About the Clinic</h2>
+                        <p>Everything you need to know about the University Clinic, from where to find us to what to bring.</p>
+                    </div>
+                </div>
+
+                <!-- QUICK FACTS -->
+                <section class="info-grid">
+
+                    <div class="info-card">
+                        <div class="info-icon blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                        </div>
+                        <h4>Location</h4>
+                        <p class="info-value">University Clinic, Ground Floor, Main Building</p>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-icon green">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <h4>Clinic Hours</h4>
+                        <p class="info-value">Mon – Fri, 8:00 AM – 5:00 PM</p>
+                        <p>Sat, 8:00 AM – 12:00 PM</p>
+                    </div>
+
+                    <a href="tel:+630000000000" class="info-card">
+                        <div class="info-icon orange">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                            </svg>
+                        </div>
+                        <h4>Phone</h4>
+                        <p class="info-value">(02) 0000-0000</p>
+                    </a>
+
+                    <a href="mailto:clinic@university.edu" class="info-card">
+                        <div class="info-icon purple">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path>
+                                <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                        </div>
+                        <h4>Email</h4>
+                        <p class="info-value">clinic@university.edu</p>
+                    </a>
+
+                </section>
+
+                <!-- ABOUT -->
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="section-label">ABOUT US</span>
+                        <h3>Who We Are</h3>
+                    </div>
+
+                    <p class="about-text">
+                        The University Clinic provides accessible, quality health care to every student.
+                        Our team of physicians, nurses, dentists and counselors is here to help you stay
+                        healthy and ready to learn.
+                    </p>
+
+                    <p class="about-text">
+                        Through this appointment system you can book a visit, check available schedules
+                        and manage your health appointments in one place, with no long queues and no paperwork.
+                    </p>
+
+                </section>
+
+                <!-- BRING + GUIDELINES -->
+                <section class="two-col stack">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="section-label">BEFORE YOU VISIT</span>
+                            <h3>What to Bring</h3>
+                        </div>
+
+                        <ul class="check-list">
+                            <li>Your valid student ID</li>
+                            <li>Your appointment confirmation (screenshot or on screen)</li>
+                            <li>Previous medical records or prescriptions, if any</li>
+                            <li>A list of medicines you are currently taking</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="section-label">GOOD TO KNOW</span>
+                            <h3>Clinic Guidelines</h3>
+                        </div>
+
+                        <ul class="check-list">
+                            <li>Arrive 10 minutes before your appointment time</li>
+                            <li>Cancel or reschedule if you can no longer make it</li>
+                            <li>Wear a mask if you have cough or cold symptoms</li>
+                            <li>Keep the waiting area quiet and clean</li>
+                        </ul>
+                    </div>
+
+                </section>
+
+                <!-- TEAM -->
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="section-label">OUR TEAM</span>
+                        <h3>Meet the Health Team</h3>
+                    </div>
+
+                    <div class="team-grid">
+
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                                </svg>
+                            </div>
+                            <strong>University Physician</strong>
+                            <span>Consultations and medical certificates</span>
+                        </div>
+
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"></path>
+                                </svg>
+                            </div>
+                            <strong>Clinic Nurses</strong>
+                            <span>First aid, immunization and screening</span>
+                        </div>
+
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M7 4c-2.2 0-4 1.8-4 4.2 0 1.7.6 2.8 1.1 4.3C4.6 14.4 5 20 7 20c1.6 0 1.5-4 3-4h4c1.5 0 1.4 4 3 4 2 0 2.4-5.6 2.9-7.5.5-1.5 1.1-2.6 1.1-4.3C21 5.8 19.2 4 17 4c-1.5 0-2.5 1-5 1S8.5 4 7 4z"></path>
+                                </svg>
+                            </div>
+                            <strong>University Dentist</strong>
+                            <span>Dental check-ups and oral care</span>
+                        </div>
+
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                            </div>
+                            <strong>Volunteers</strong>
+                            <span>Red Cross Student Volunteers</span>
+                        </div>
+
+                    </div>
+
+                </section>
+
+                <!-- FAQ -->
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="section-label">FAQ</span>
+                        <h3>Frequently Asked Questions</h3>
+                    </div>
+
+                    <details class="faq-item">
+                        <summary>Do I need an appointment?</summary>
+                        <p>Appointments are recommended for consultations, dental visits and counseling. First aid and emergencies are accepted as walk-ins during clinic hours.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>How do I cancel or reschedule?</summary>
+                        <p>Open "View My Appointments" from the Home page to cancel or change your booking. Please do so at least a day before your appointment.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>How long does a medical certificate take?</summary>
+                        <p>Most certificates are ready after your consultation. Some requests may need review and can take one working day.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Is my health information private?</summary>
+                        <p>Yes. Your records are kept confidential and can only be accessed by authorized clinic staff.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>What should I do in an emergency?</summary>
+                        <p>Go to the clinic right away during clinic hours, or call the campus emergency hotline. For life-threatening situations, call your local emergency number immediately.</p>
+                    </details>
+
+                </section>
+
+            </section>
+
+            <!-- Footer Area (Mobile only) -->
+            <footer class="footer">
+                <div class="footer-heart">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path
+                            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                        </path>
+                    </svg>
+                </div>
+                <div class="footer-divider"></div>
+                <p class="footer-text">
+                    Your health. Our priority.<br>
+                    <span>We're here for you. <span class="heart-emoji">🧡</span></span>
+                </p>
+            </footer>
+
+        </div>
+    </div>
+
+    <script type="module" src="dashboard.js"></script>
+</body>
+
+</html>

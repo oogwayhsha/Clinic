@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Appointment Management | University Clinic</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Shared theme first, then the admin additions -->
+    <link rel="stylesheet" href="../appointment/appointments.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+        <a href="../dashboard/dashboard.html" class="brand" aria-label="University Clinic home">
+            <img src="nufvlogo.png" alt="University Logo">
+
+            <div>
+                <h1>University Clinic</h1>
+                <span>Admin Portal</span>
+            </div>
+        </a>
+
+
+        <nav class="desktop-nav">
+
+            <a href="../dashboard/dashboard.html">Home</a>
+
+            <a href="admin.html" class="active">Appointments</a>
+
+            <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
+
+        </nav>
+
+
+        <!-- Mobile header buttons -->
+        <div class="mobile-header-btns">
+
+            <a href="../dashboard/dashboard.html" class="mobile-icon-btn" aria-label="Home" title="Home">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+            </a>
+
+            <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="page-container">
+
+        <!-- Shown until the account is confirmed as an admin -->
+        <div class="empty-state access-check" id="accessCheck">
+            <p>Checking your access...</p>
+        </div>
+
+
+        <div id="adminContent" hidden>
+
+            <!-- PAGE HEADER -->
+            <section class="page-header">
+
+                <div>
+                    <span class="page-label">ADMIN</span>
+                    <h2>Appointment Management</h2>
+                    <p>Oversee every student and employee appointment: confirm, complete or cancel them.</p>
+                </div>
+
+                <div class="header-actions">
+                    <button type="button" class="btn-secondary" id="refreshBtn">↻ Refresh</button>
+                    <button type="button" class="btn-primary" id="exportBtn">Export CSV</button>
+                </div>
+
+            </section>
+
+
+            <!-- STATS -->
+            <section class="stats-grid" aria-label="Appointment overview">
+
+                <div class="stat-card">
+                    <span class="stat-label">Today</span>
+                    <strong id="statToday">0</strong>
+                    <small>appointments</small>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Pending</span>
+                    <strong id="statPending">0</strong>
+                    <small>need confirmation</small>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Confirmed</span>
+                    <strong id="statConfirmed">0</strong>
+                    <small>upcoming</small>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Completed</span>
+                    <strong id="statCompleted">0</strong>
+                    <small>all time</small>
+                </div>
+
+            </section>
+
+
+            <!-- FILTERS -->
+            <section class="card toolbar">
+
+                <!-- CHANGED: "All" is first and active by default -->
+                <div class="filters" id="rangeFilters" role="group" aria-label="Date range">
+                    <button type="button" class="filter active" data-range="all">All</button>
+                    <button type="button" class="filter" data-range="today">Today</button>
+                    <button type="button" class="filter" data-range="upcoming">Upcoming</button>
+                    <button type="button" class="filter" data-range="past">Past</button>
+                </div>
+
+                <div class="toolbar-fields">
+
+                    <div class="form-group search">
+                        <label for="searchInput">Search</label>
+                        <input type="search" id="searchInput" placeholder="Name, ID or service">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="statusFilter">Status</label>
+                        <select id="statusFilter">
+                            <option value="all">All statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="missed">Missed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="serviceFilter">Service</label>
+                        <select id="serviceFilter">
+                            <option value="all">All services</option>
+                            <option value="consultation">Medical Consultation</option>
+                            <option value="dental">Dental Services</option>
+                            <option value="certificate">Medical Certificate</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="roleFilter">Patient type</label>
+                        <select id="roleFilter">
+                            <option value="all">Students and employees</option>
+                            <option value="student">Students</option>
+                            <option value="employee">Employees</option>
+                        </select>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <p class="result-count" id="resultCount" aria-live="polite"></p>
+
+            <div id="appointmentList" aria-live="polite">
+                <div class="empty-state"><p>Loading appointments...</p></div>
+            </div>
+
+        </div>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer>
+        <p>© 2026 University Clinic. All rights reserved.</p>
+    </footer>
+
+
+    <!-- CANCEL MODAL (with an optional note the patient will see) -->
+    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">APPOINTMENT</span>
+                    <h3 id="cancelTitle">Cancel this appointment?</h3>
+                </div>
+
+                <button type="button" id="cancelModalClose" class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="cancelDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="cancelNote">Note for the patient (optional)</label>
+                <textarea id="cancelNote" maxlength="200" placeholder="e.g. The dentist is unavailable that day. Please rebook."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" id="cancelKeep" class="cancel-btn">Keep appointment</button>
+                <button type="button" id="cancelConfirm" class="danger-btn">Yes, cancel it</button>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- TOASTS -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+
+    <script type="module" src="admin.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Employee Profile | University Clinic</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../dashboard/profile.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+        <div class="brand">
+            <img src="nufvlogo.png" alt="University Logo">
+
+            <div>
+                <h1>University Clinic</h1>
+                <span>Staff Portal</span>
+            </div>
+        </div>
+
+
+        <nav class="desktop-nav">
+
+            <a href="../dashboard/dashboard.html">Home</a>
+
+            <a href="em-appointment.html">Appointments</a>
+
+            <a href="employee-profile.html" class="nav-profile-btn active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Profile</span>
+            </a>
+
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+
+        </nav>
+
+
+        <div class="mobile-header-btns">
+
+            <a href="../appointment/appointments.html" class="mobile-icon-btn" aria-label="Appointments" title="Appointments">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+            </a>
+
+            <a href="employee-profile.html" class="mobile-icon-btn active" aria-label="My Profile" title="Profile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </a>
+
+            <button class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="profile-container">
+
+        <section class="page-header">
+
+            <div>
+                <span class="page-label">EMPLOYEE ACCOUNT</span>
+                <h2>My Profile</h2>
+                <p>Manage your personal information and staff account.</p>
+            </div>
+
+            <a href="../dashboard/dashboard.html" class="back-btn">← Back to Home</a>
+
+        </section>
+
+
+        <!-- PROFILE SUMMARY -->
+        <section class="profile-summary">
+
+            <div class="profile-main">
+
+                <div class="avatar-container">
+                    <div class="avatar" id="avatar">--</div>
+                    <button type="button" class="avatar-edit" id="avatarEdit" title="Change profile photo">✎</button>
+                </div>
+
+                <div class="profile-identity">
+                    <h2 id="summaryName">Loading...</h2>
+                    <p>Employee ID: <strong id="summaryId">Loading...</strong></p>
+                    <span class="account-status">● Active Account</span>
+                </div>
+
+            </div>
+
+            <div class="profile-stats">
+
+                <div class="stat">
+                    <strong id="appointmentCount">0</strong>
+                    <span>Appointment</span>
+                </div>
+
+                <div class="stat">
+                    <strong id="completedCount">0</strong>
+                    <span>Completed</span>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- PERSONAL INFORMATION -->
+        <section class="profile-card">
+
+            <div class="card-header">
+                <div>
+                    <span class="section-label">PERSONAL</span>
+                    <h3>Personal Information</h3>
+                </div>
+                <button type="button" id="editPersonalBtn" class="edit-btn">✎ Edit</button>
+            </div>
+
+            <div class="information-grid">
+
+                <div class="information-item">
+                    <span class="information-label">Full Name</span>
+                    <strong id="fullName">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Employee ID</span>
+                    <strong id="employeeId">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Email Address</span>
+                    <strong id="email">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Contact Number</span>
+                    <strong id="phone">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Department</span>
+                    <strong id="department">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Position</span>
+                    <strong id="position">Loading...</strong>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- EMERGENCY CONTACT -->
+        <section class="profile-card">
+
+            <div class="card-header">
+                <div>
+                    <span class="section-label">CLINIC</span>
+                    <h3>Emergency Contact</h3>
+                </div>
+                <button type="button" id="editEmergencyBtn" class="edit-btn">✎ Edit</button>
+            </div>
+
+            <div class="information-grid">
+
+                <div class="information-item">
+                    <span class="information-label">Emergency Contact</span>
+                    <strong id="emergencyName">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Relationship</span>
+                    <strong id="relationship">Loading...</strong>
+                </div>
+
+                <div class="information-item">
+                    <span class="information-label">Emergency Number</span>
+                    <strong id="emergencyPhone">Loading...</strong>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ACCOUNT PREFERENCES -->
+        <section class="profile-card">
+
+            <div class="card-header">
+                <div>
+                    <span class="section-label">SETTINGS</span>
+                    <h3>Account Preferences</h3>
+                </div>
+            </div>
+
+            <div class="preference-list">
+
+                <div class="preference-item">
+                    <div>
+                        <strong>New Appointment Alerts</strong>
+                        <p>Get notified when a new appointment is assigned to you.</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="newAppointments" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="preference-item">
+                    <div>
+                        <strong>Schedule Updates</strong>
+                        <p>Receive updates when appointment schedules change.</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="scheduleUpdates" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- PRIVACY -->
+        <section class="privacy-note">
+            <div class="privacy-icon">🔒</div>
+            <div>
+                <strong>Your information is protected</strong>
+                <p>Your account information is securely stored and can only be accessed by authorized users.</p>
+            </div>
+        </section>
+
+    </main>
+
+
+    <footer>
+        <p>© 2026 University Clinic. All rights reserved.</p>
+    </footer>
+
+
+    <!-- EDIT PERSONAL INFORMATION MODAL -->
+    <div class="modal" id="profileModal">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">PERSONAL</span>
+                    <h3>Edit Personal Information</h3>
+                </div>
+                <button type="button" id="modalClose" class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <form id="profileForm">
+
+                <div class="form-group">
+                    <label for="editName">Full Name</label>
+                    <input type="text" id="editName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editEmail">Email Address (login email)</label>
+                    <input type="email" id="editEmail" readonly>
+                </div>
+
+                <div class="form-group">
+                    <label for="editPhone">Contact Number</label>
+                    <input type="tel" id="editPhone" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editDepartment">Department</label>
+                    <input type="text" id="editDepartment" maxlength="100" placeholder="e.g. Nursing Services">
+                </div>
+
+                <div class="form-group">
+                    <label for="editPosition">Position</label>
+                    <input type="text" id="editPosition" maxlength="100" placeholder="e.g. Clinic Nurse">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="cancelBtn" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="save-btn">Save Changes</button>
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- EDIT EMERGENCY CONTACT MODAL -->
+    <div class="modal" id="emergencyModal">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">CLINIC</span>
+                    <h3>Edit Emergency Contact</h3>
+                </div>
+                <button type="button" id="emergencyModalClose" class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <form id="emergencyForm">
+
+                <div class="form-group">
+                    <label for="editEmergencyName">Contact Name</label>
+                    <input type="text" id="editEmergencyName" placeholder="Full name">
+                </div>
+
+                <div class="form-group">
+                    <label for="editRelationship">Relationship</label>
+                    <input type="text" id="editRelationship" placeholder="e.g. Spouse, Parent">
+                </div>
+
+                <div class="form-group">
+                    <label for="editEmergencyPhone">Contact Number</label>
+                    <input type="tel" id="editEmergencyPhone" placeholder="e.g. 0917 123 4567">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="emergencyCancelBtn" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="save-btn">Save Changes</button>
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <script type="module" src="employee-profile.js"></script>
+
+</body>
+</html>
