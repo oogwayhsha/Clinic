@@ -9,7 +9,7 @@ let currentRole = "student";
 
 // Set to true if only NU emails should be accepted
 // (students: @students.nu-fairview.edu.ph, employees: @nu-fairview.edu.ph)
-const REQUIRE_NU_EMAIL = false;
+const REQUIRE_NU_EMAIL = true;
 
 const registerForm = document.getElementById("registerForm");
 const registerBtn = document.getElementById("registerBtn");
@@ -251,14 +251,13 @@ async function handleRegister() {
     studentYear = document.getElementById("studentYear").value;
 
     // Pattern for format like 2022-1234567 (4 digits, hyphen, 7 digits)
-    const studentIdPattern = /^\d{4}-\d{7}$/;
+    const studentIdPattern = /^\d{4}-\d{6,7}$/;
 
     if (studentId === "") {
       fail("studentId", "Student ID is required.");
     } else if (!studentIdPattern.test(studentId)) {
-      fail("studentId", "Invalid format. Use YYYY-XXXXXXX (e.g., 2022-1234567).");
+      fail("studentId", "Invalid format. Use YYYY-XXXXXX or YYYY-XXXXXXX (e.g., 2022-123456).");
     }
-
     if (studentProgram === "") {
       fail("studentProgram", "Program is required.");
     }
