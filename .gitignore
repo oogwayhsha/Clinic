@@ -1,0 +1,5 @@
+# Firebase credentials & config
+firebase/
+**/firebase/
+firebase.js
+**/firebase.js
