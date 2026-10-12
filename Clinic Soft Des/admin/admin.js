@@ -319,12 +319,298 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    function render() {
+    /* =========================================
+       WEEKLY SCHEDULE LOGIC
+    ========================================= */
 
+    function getMonday(d) {
+        const date = new Date(d);
+        const day = date.getDay(); // 0 is Sun, 1 is Mon... 6 is Sat
+        const diff = date.getDate() - (day === 0 ? 6 : day - 1);
+        const monday = new Date(date.setDate(diff));
+        monday.setHours(0, 0, 0, 0);
+        return monday;
+    }
+
+    let currentWeekMonday = getMonday(new Date());
+    let currentViewMode = "weekly"; // "weekly" | "list"
+    let weeklyDisplayMode = "table"; // "table" | "grid"
+    const weekFilters = { status: "all", service: "all", search: "" };
+
+    function getWeekDays(monday) {
+        const days = [];
+        const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const todayKey = toDateKey(new Date());
+
+        for (let i = 0; i < 6; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            const dateKey = toDateKey(d);
+            days.push({
+                date: d,
+                dateKey,
+                dayName: dayNames[i],
+                displayDate: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                fullDate: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                isToday: dateKey === todayKey
+            });
+        }
+
+        // Check if there are Sunday appointments in this week
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const sunKey = toDateKey(sunday);
+        const hasSundayAppointments = all.some((a) => a.date === sunKey);
+
+        if (hasSundayAppointments) {
+            days.push({
+                date: sunday,
+                dateKey: sunKey,
+                dayName: "Sunday",
+                displayDate: sunday.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                fullDate: sunday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                isToday: sunKey === todayKey
+            });
+        }
+
+        return days;
+    }
+
+    function filteredWeekAppointments(weekDays) {
+        const dayKeys = new Set(weekDays.map((d) => d.dateKey));
+        const term = weekFilters.search.trim().toLowerCase();
+
+        return all.filter((a) => {
+            if (!a.date || !dayKeys.has(a.date)) return false;
+
+            if (weekFilters.status !== "all" && statusOf(a) !== weekFilters.status) return false;
+            if (weekFilters.service !== "all" && a.service !== weekFilters.service) return false;
+
+            if (term) {
+                const haystack = `${patientName(a)} ${patientId(a)} ${serviceName(a)}`.toLowerCase();
+                if (!haystack.includes(term)) return false;
+            }
+
+            return true;
+        }).sort((a, b) => whenOf(a) - whenOf(b));
+    }
+
+    function renderWeeklySchedule() {
         if (!loaded) return;
 
-        renderStats();
+        const weekDays = getWeekDays(currentWeekMonday);
+        const lastDay = weekDays[weekDays.length - 1].date;
 
+        const startStr = currentWeekMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const endStr = lastDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        $("currentWeekRange").textContent = `${startStr} – ${endStr}`;
+
+        const thisWeekMon = getMonday(new Date());
+        const isThisWeek = toDateKey(currentWeekMonday) === toDateKey(thisWeekMon);
+        $("currentWeekBadge").hidden = !isThisWeek;
+
+        // Appointments in this week
+        const weekList = filteredWeekAppointments(weekDays);
+
+        // Stats summary for the selected week
+        const allWeekList = all.filter((a) => weekDays.some((d) => d.dateKey === a.date));
+        const weekTotal = allWeekList.length;
+        const weekConfirmed = allWeekList.filter((a) => statusOf(a) === "confirmed").length;
+        const weekPending = allWeekList.filter((a) => statusOf(a) === "pending").length;
+        const weekCompleted = allWeekList.filter((a) => statusOf(a) === "completed").length;
+
+        $("weekSummaryPills").innerHTML = `
+            <span class="summary-pill total">Total: <strong>${weekTotal}</strong></span>
+            <span class="summary-pill confirmed">Confirmed: <strong>${weekConfirmed}</strong></span>
+            <span class="summary-pill pending">Pending: <strong>${weekPending}</strong></span>
+            <span class="summary-pill completed">Completed: <strong>${weekCompleted}</strong></span>
+        `;
+
+        if (weeklyDisplayMode === "table") {
+            renderWeeklyTable(weekDays, weekList);
+        } else {
+            renderWeeklyGrid(weekDays, weekList);
+        }
+    }
+
+    function renderWeeklyTable(weekDays, weekList) {
+        if (weekList.length === 0) {
+            $("weeklyContentArea").innerHTML = `
+                <div class="card empty-state">
+                    <h4>No appointments scheduled for this week</h4>
+                    <p>There are no appointments matching your filters for ${$("currentWeekRange").textContent}.</p>
+                    <button type="button" class="btn-primary" id="jumpThisWeekBtn">Jump to Current Week</button>
+                </div>
+            `;
+            const jumpBtn = $("jumpThisWeekBtn");
+            if (jumpBtn) {
+                jumpBtn.addEventListener("click", () => {
+                    currentWeekMonday = getMonday(new Date());
+                    weekFilters.status = "all";
+                    weekFilters.service = "all";
+                    weekFilters.search = "";
+                    $("weekStatusFilter").value = "all";
+                    $("weekServiceFilter").value = "all";
+                    $("weekSearchInput").value = "";
+                    renderWeeklySchedule();
+                });
+            }
+            return;
+        }
+
+        const todayKey = toDateKey(new Date());
+
+        const rowsHtml = weekList.map((a) => {
+            const status = statusOf(a);
+            const phone = patientPhone(a);
+            const id = patientId(a);
+            const role = patientRole(a);
+            const email = patientEmail(a);
+            const detail = patientDetail(a);
+            const isToday = a.date === todayKey;
+
+            const end = a.time ? formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES)) : "";
+            const dayObj = weekDays.find((d) => d.dateKey === a.date);
+            const dayLabel = dayObj ? dayObj.dayName : "Unknown";
+            const dateLabel = dayObj ? dayObj.displayDate : (a.date || "");
+
+            const buttons = actionsFor(a)
+                .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
+                .join("");
+
+            return `
+                <tr class="${isToday ? "is-today" : ""}">
+                    <td>
+                        <div class="table-day-cell">
+                            <strong>${escapeHtml(dayLabel)}</strong>
+                            <small>${escapeHtml(dateLabel)}</small>
+                            ${isToday ? `<span class="table-today-pill">Today</span>` : ""}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="table-time-pill">${a.time ? formatTime(a.time) : "--"}${end ? ` – ${end}` : ""}</span>
+                    </td>
+                    <td>
+                        <div class="table-patient-cell">
+                            <strong>${escapeHtml(patientName(a))}</strong>
+                            <div class="table-patient-meta">
+                                <span class="type-chip ${role}">${role}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        ${id ? `<div><strong>${escapeHtml(id)}</strong></div>` : ""}
+                        ${detail ? `<small style="color:var(--muted)">${escapeHtml(detail)}</small>` : ""}
+                    </td>
+                    <td>
+                        <span class="table-service-pill ${escapeHtml(a.service || "consultation")}">
+                            ${escapeHtml(serviceName(a))}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="table-contact-links">
+                            ${phone ? `<a href="tel:${escapeHtml(phone)}" title="Call">${escapeHtml(phone)}</a>` : ""}
+                            ${email ? `<a href="mailto:${escapeHtml(email)}" title="Email">${escapeHtml(email)}</a>` : ""}
+                            ${!phone && !email ? `<span style="color:var(--muted)">--</span>` : ""}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge ${status}">${BADGES[status] || escapeHtml(status)}</span>
+                    </td>
+                    <td>
+                        <div class="table-actions-cell">
+                            ${buttons || `<span style="color:var(--muted); font-size:12px;">No actions</span>`}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        $("weeklyContentArea").innerHTML = `
+            <div class="card week-table-card">
+                <div class="table-scroll-wrapper">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Day & Date</th>
+                                <th>Time Slot</th>
+                                <th>Patient</th>
+                                <th>ID / Details</th>
+                                <th>Service</th>
+                                <th>Contact</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderWeeklyGrid(weekDays, weekList) {
+        const colsHtml = weekDays.map((day) => {
+            const dayAppts = weekList.filter((a) => a.date === day.dateKey);
+
+            const cardsHtml = dayAppts.length === 0
+                ? `<div class="col-empty-msg">No appointments</div>`
+                : dayAppts.map((a) => {
+                    const status = statusOf(a);
+                    const role = patientRole(a);
+                    const id = patientId(a);
+                    const end = a.time ? formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES)) : "";
+                    const buttons = actionsFor(a)
+                        .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
+                        .join("");
+
+                    return `
+                        <div class="day-grid-card">
+                            <div class="grid-card-top">
+                                <span class="grid-card-time">${a.time ? formatTime(a.time) : "--"}${end ? ` until ${end}` : ""}</span>
+                                <span class="badge ${status}">${BADGES[status] || status}</span>
+                            </div>
+                            <div class="grid-card-patient">
+                                <h5>${escapeHtml(patientName(a))}</h5>
+                                <div class="grid-card-meta">
+                                    <span class="type-chip ${role}">${role}</span>
+                                    ${id ? `<span>${escapeHtml(id)}</span>` : ""}
+                                </div>
+                            </div>
+                            <div class="grid-card-service">
+                                ${escapeHtml(serviceName(a))}
+                            </div>
+                            ${buttons ? `<div class="grid-card-actions">${buttons}</div>` : ""}
+                        </div>
+                    `;
+                }).join("");
+
+            return `
+                <div class="week-day-col ${day.isToday ? "today" : ""}">
+                    <div class="day-col-header">
+                        <div class="day-col-title">
+                            <strong>${escapeHtml(day.dayName)}</strong>
+                            <span>${escapeHtml(day.displayDate)}</span>
+                        </div>
+                        <span class="day-count-badge">${dayAppts.length}</span>
+                    </div>
+                    <div class="day-col-cards">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }).join("");
+
+        $("weeklyContentArea").innerHTML = `
+            <div class="week-grid-board">
+                ${colsHtml}
+            </div>
+        `;
+    }
+
+    function renderList() {
         const list = sortList(filtered());
 
         $("resultCount").textContent =
@@ -372,11 +658,85 @@ document.addEventListener("DOMContentLoaded", () => {
         }).join("");
     }
 
+    function render() {
+        if (!loaded) return;
+        renderStats();
+        renderWeeklySchedule();
+        renderList();
+    }
+
 
     /* =========================================
-       FILTER CONTROLS
+       FILTER & VIEW SWITCHER CONTROLS
     ========================================= */
 
+    // Main View Switcher
+    $("viewWeeklyScheduleBtn").addEventListener("click", () => {
+        currentViewMode = "weekly";
+        $("viewWeeklyScheduleBtn").classList.add("active");
+        $("viewListViewBtn").classList.remove("active");
+        $("weeklyScheduleSection").hidden = false;
+        $("listViewSection").hidden = true;
+        renderWeeklySchedule();
+    });
+
+    $("viewListViewBtn").addEventListener("click", () => {
+        currentViewMode = "list";
+        $("viewListViewBtn").classList.add("active");
+        $("viewWeeklyScheduleBtn").classList.remove("active");
+        $("weeklyScheduleSection").hidden = true;
+        $("listViewSection").hidden = false;
+        renderList();
+    });
+
+    // Week Navigation
+    $("prevWeekBtn").addEventListener("click", () => {
+        currentWeekMonday.setDate(currentWeekMonday.getDate() - 7);
+        renderWeeklySchedule();
+    });
+
+    $("nextWeekBtn").addEventListener("click", () => {
+        currentWeekMonday.setDate(currentWeekMonday.getDate() + 7);
+        renderWeeklySchedule();
+    });
+
+    $("thisWeekBtn").addEventListener("click", () => {
+        currentWeekMonday = getMonday(new Date());
+        renderWeeklySchedule();
+    });
+
+    // Weekly Display Mode (Table vs Grid)
+    $("displayTableBtn").addEventListener("click", () => {
+        weeklyDisplayMode = "table";
+        $("displayTableBtn").classList.add("active");
+        $("displayGridBtn").classList.remove("active");
+        renderWeeklySchedule();
+    });
+
+    $("displayGridBtn").addEventListener("click", () => {
+        weeklyDisplayMode = "grid";
+        $("displayGridBtn").classList.add("active");
+        $("displayTableBtn").classList.remove("active");
+        renderWeeklySchedule();
+    });
+
+    // Week Quick Filters
+    $("weekStatusFilter").addEventListener("change", (e) => {
+        weekFilters.status = e.target.value;
+        renderWeeklySchedule();
+    });
+
+    $("weekServiceFilter").addEventListener("change", (e) => {
+        weekFilters.service = e.target.value;
+        renderWeeklySchedule();
+    });
+
+    $("weekSearchInput").addEventListener("input", (e) => {
+        weekFilters.search = e.target.value;
+        renderWeeklySchedule();
+    });
+
+    // List view filters
     $("rangeFilters").addEventListener("click", (event) => {
 
         const button = event.target.closest(".filter");
@@ -388,13 +748,13 @@ document.addEventListener("DOMContentLoaded", () => {
             b.classList.toggle("active", b === button);
         });
 
-        render();
+        renderList();
     });
 
-    $("statusFilter").addEventListener("change", (e) => { filters.status = e.target.value; render(); });
-    $("serviceFilter").addEventListener("change", (e) => { filters.service = e.target.value; render(); });
-    $("roleFilter").addEventListener("change", (e) => { filters.role = e.target.value; render(); });
-    $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; render(); });
+    $("statusFilter").addEventListener("change", (e) => { filters.status = e.target.value; renderList(); });
+    $("serviceFilter").addEventListener("change", (e) => { filters.service = e.target.value; renderList(); });
+    $("roleFilter").addEventListener("change", (e) => { filters.role = e.target.value; renderList(); });
+    $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
 
     $("refreshBtn").addEventListener("click", async () => {
         await loadAppointments();
@@ -449,19 +809,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    $("appointmentList").addEventListener("click", async (event) => {
-
+    async function handleAppointmentAction(event) {
         if (event.target.closest("#retryBtn")) {
             loadAppointments();
             return;
         }
 
         const button = event.target.closest("[data-action]");
-
         if (!button) return;
 
         const a = all.find((item) => item.id === button.dataset.id);
-
         if (!a) return;
 
         const action = button.dataset.action;
@@ -480,12 +837,14 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         const [status, message] = messages[action];
-
         const saved = await setStatus(a, status);
 
         if (saved) toast(message, "success");
         else button.disabled = false;
-    });
+    }
+
+    $("appointmentList").addEventListener("click", handleAppointmentAction);
+    $("weeklyContentArea").addEventListener("click", handleAppointmentAction);
 
 
     /* =========================================
@@ -561,29 +920,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     $("exportBtn").addEventListener("click", () => {
 
-        const list = sortList(filtered());
+        const isWeekly = currentViewMode === "weekly";
+        const list = isWeekly
+            ? filteredWeekAppointments(getWeekDays(currentWeekMonday))
+            : sortList(filtered());
 
         if (list.length === 0) {
-            toast("There is nothing to export for the current filters.", "error");
+            toast(isWeekly
+                ? "There are no appointments to export for this week."
+                : "There is nothing to export for the current filters.", "error");
             return;
         }
 
-        const header = ["Date", "Time", "Service", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Reason", "Note"];
+        const header = ["Date", "Day", "Time", "Service", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Reason", "Note"];
 
-        const rows = list.map((a) => [
-            a.date || "",
-            a.time ? formatTime(a.time) : "",
-            serviceName(a),
-            patientName(a),
-            patientRole(a),
-            patientId(a),
-            patientDetail(a),
-            patientEmail(a),
-            patientPhone(a),
-            BADGES[statusOf(a)] || statusOf(a),
-            a.reason || "",
-            a.clinicNote || ""
-        ]);
+        const rows = list.map((a) => {
+            const dayObj = a.date ? parseDateKey(a.date) : null;
+            const dayName = dayObj ? dayObj.toLocaleDateString("en-US", { weekday: "long" }) : "";
+            return [
+                a.date || "",
+                dayName,
+                a.time ? formatTime(a.time) : "",
+                serviceName(a),
+                patientName(a),
+                patientRole(a),
+                patientId(a),
+                patientDetail(a),
+                patientEmail(a),
+                patientPhone(a),
+                BADGES[statusOf(a)] || statusOf(a),
+                a.reason || "",
+                a.clinicNote || ""
+            ];
+        });
 
         const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 
@@ -591,9 +960,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
 
+        const filename = isWeekly
+            ? `weekly-schedule-${toDateKey(currentWeekMonday)}.csv`
+            : `appointments-${toDateKey(new Date())}.csv`;
+
         const link = document.createElement("a");
         link.href = url;
-        link.download = `appointments-${toDateKey(new Date())}.csv`;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         link.remove();

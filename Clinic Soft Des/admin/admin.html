@@ -122,65 +122,188 @@
             </section>
 
 
-            <!-- FILTERS -->
-            <section class="card toolbar">
+            <!-- MAIN VIEW SWITCHER -->
+            <div class="main-view-switcher" role="tablist" aria-label="Appointment view format">
+                <button type="button" class="view-switch-btn active" id="viewWeeklyScheduleBtn" role="tab" aria-selected="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    Weekly Schedule Table
+                </button>
+                <button type="button" class="view-switch-btn" id="viewListViewBtn" role="tab" aria-selected="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    All Appointments (Card List)
+                </button>
+            </div>
 
-                <!-- CHANGED: "All" is first and active by default -->
-                <div class="filters" id="rangeFilters" role="group" aria-label="Date range">
-                    <button type="button" class="filter active" data-range="all">All</button>
-                    <button type="button" class="filter" data-range="today">Today</button>
-                    <button type="button" class="filter" data-range="upcoming">Upcoming</button>
-                    <button type="button" class="filter" data-range="past">Past</button>
+
+            <!-- WEEKLY SCHEDULE VIEW (Tabular / Grid) -->
+            <section id="weeklyScheduleSection" class="weekly-schedule-section">
+
+                <!-- Navigation & Controls Header Card -->
+                <div class="card week-nav-card">
+                    <div class="week-nav-top">
+                        <div class="week-date-heading">
+                            <span class="section-label">WEEKLY SCHEDULE</span>
+                            <div class="week-title-row">
+                                <h3 id="currentWeekRange">Loading week...</h3>
+                                <span class="current-week-tag" id="currentWeekBadge">THIS WEEK</span>
+                            </div>
+                        </div>
+
+                        <!-- Week Navigation Buttons -->
+                        <div class="week-nav-btns">
+                            <button type="button" class="btn-week-nav" id="prevWeekBtn" title="Previous week" aria-label="Previous week">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="15 18 9 12 15 6"></polyline>
+                                </svg>
+                                <span>Prev Week</span>
+                            </button>
+                            <button type="button" class="btn-week-today" id="thisWeekBtn" title="Go to current week">
+                                Current Week
+                            </button>
+                            <button type="button" class="btn-week-nav" id="nextWeekBtn" title="Next week" aria-label="Next week">
+                                <span>Next Week</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Week Summary Ribbon & Sub-view Toggles -->
+                    <div class="week-toolbar">
+                        <div class="week-summary-pills" id="weekSummaryPills">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <div class="week-display-toggle" role="group" aria-label="Display mode">
+                            <button type="button" class="display-toggle-btn active" id="displayTableBtn" title="Tabular schedule table view">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"></path>
+                                </svg>
+                                Tabular Table
+                            </button>
+                            <button type="button" class="display-toggle-btn" id="displayGridBtn" title="Day columns timetable grid">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+                                    <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+                                </svg>
+                                Day Columns
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Filters for the week -->
+                    <div class="week-quick-filters">
+                        <div class="week-filter-group">
+                            <label for="weekStatusFilter">Status</label>
+                            <select id="weekStatusFilter">
+                                <option value="all">All statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="completed">Completed</option>
+                                <option value="missed">Missed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="week-filter-group">
+                            <label for="weekServiceFilter">Service</label>
+                            <select id="weekServiceFilter">
+                                <option value="all">All services</option>
+                                <option value="consultation">Medical Consultation</option>
+                                <option value="dental">Dental Services</option>
+                                <option value="certificate">Medical Certificate</option>
+                            </select>
+                        </div>
+                        <div class="week-filter-group search">
+                            <label for="weekSearchInput">Search Patient</label>
+                            <input type="search" id="weekSearchInput" placeholder="Name or Student/Employee ID...">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="toolbar-fields">
-
-                    <div class="form-group search">
-                        <label for="searchInput">Search</label>
-                        <input type="search" id="searchInput" placeholder="Name, ID or service">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="statusFilter">Status</label>
-                        <select id="statusFilter">
-                            <option value="all">All statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="missed">Missed</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="serviceFilter">Service</label>
-                        <select id="serviceFilter">
-                            <option value="all">All services</option>
-                            <option value="consultation">Medical Consultation</option>
-                            <option value="dental">Dental Services</option>
-                            <option value="certificate">Medical Certificate</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="roleFilter">Patient type</label>
-                        <select id="roleFilter">
-                            <option value="all">Students and employees</option>
-                            <option value="student">Students</option>
-                            <option value="employee">Employees</option>
-                        </select>
-                    </div>
-
+                <!-- Dynamic Weekly Content (Table or Day Columns Grid) -->
+                <div id="weeklyContentArea" aria-live="polite">
+                    <div class="empty-state"><p>Loading weekly schedule...</p></div>
                 </div>
 
             </section>
 
 
-            <p class="result-count" id="resultCount" aria-live="polite"></p>
+            <!-- CARD LIST VIEW (Detailed filter toolbar + cards) -->
+            <section id="listViewSection" hidden>
 
-            <div id="appointmentList" aria-live="polite">
-                <div class="empty-state"><p>Loading appointments...</p></div>
-            </div>
+                <!-- FILTERS -->
+                <div class="card toolbar">
+
+                    <!-- CHANGED: "All" is first and active by default -->
+                    <div class="filters" id="rangeFilters" role="group" aria-label="Date range">
+                        <button type="button" class="filter active" data-range="all">All</button>
+                        <button type="button" class="filter" data-range="today">Today</button>
+                        <button type="button" class="filter" data-range="upcoming">Upcoming</button>
+                        <button type="button" class="filter" data-range="past">Past</button>
+                    </div>
+
+                    <div class="toolbar-fields">
+
+                        <div class="form-group search">
+                            <label for="searchInput">Search</label>
+                            <input type="search" id="searchInput" placeholder="Name, ID or service">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="statusFilter">Status</label>
+                            <select id="statusFilter">
+                                <option value="all">All statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="completed">Completed</option>
+                                <option value="missed">Missed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="serviceFilter">Service</label>
+                            <select id="serviceFilter">
+                                <option value="all">All services</option>
+                                <option value="consultation">Medical Consultation</option>
+                                <option value="dental">Dental Services</option>
+                                <option value="certificate">Medical Certificate</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="roleFilter">Patient type</label>
+                            <select id="roleFilter">
+                                <option value="all">Students and employees</option>
+                                <option value="student">Students</option>
+                                <option value="employee">Employees</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <p class="result-count" id="resultCount" aria-live="polite"></p>
+
+                <div id="appointmentList" aria-live="polite">
+                    <div class="empty-state"><p>Loading appointments...</p></div>
+                </div>
+
+            </section>
 
         </div>
 
