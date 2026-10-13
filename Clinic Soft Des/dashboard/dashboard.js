@@ -256,23 +256,32 @@ function initDashboard() {
     // NAVIGATION (Clicks + ScrollSpy)
     // ==========================================
 
+    let currentActiveHref = null;
+
     function setActiveTab(targetHref) {
+        const normalizedTarget = (targetHref === "#" || targetHref === "#home" || !targetHref) ? "#" : targetHref;
+        if (normalizedTarget === currentActiveHref) return;
+        currentActiveHref = normalizedTarget;
+
         navLinks.forEach((item) => {
             const itemHref = item.getAttribute("href");
-            const isHome = targetHref === "#" || targetHref === "#home" || !targetHref;
+            const isHome = normalizedTarget === "#";
             const matches = isHome
                 ? (itemHref === "#" || itemHref === "#home")
-                : (itemHref === targetHref);
+                : (itemHref === normalizedTarget);
 
             item.classList.toggle("active", matches);
 
-            // Keep active pill scrolled into view horizontally on mobile
-            if (matches && item.closest(".page-tabs")) {
-                item.scrollIntoView({
-                    behavior: "smooth",
-                    inline: "center",
-                    block: "nearest"
-                });
+            // Keep active pill scrolled into view horizontally on mobile WITHOUT moving window scroll
+            if (matches) {
+                const tabsContainer = item.closest(".page-tabs");
+                if (tabsContainer) {
+                    const scrollLeftTarget = item.offsetLeft - (tabsContainer.clientWidth / 2) + (item.clientWidth / 2);
+                    tabsContainer.scrollTo({
+                        left: Math.max(0, scrollLeftTarget),
+                        behavior: "smooth"
+                    });
+                }
             }
         });
     }
@@ -342,7 +351,16 @@ function initDashboard() {
         setActiveTab(currentHref);
     }
 
-    window.addEventListener("scroll", handleScrollSpy, { passive: true });
+    let spyTicking = false;
+    window.addEventListener("scroll", () => {
+        if (!spyTicking) {
+            window.requestAnimationFrame(() => {
+                handleScrollSpy();
+                spyTicking = false;
+            });
+            spyTicking = true;
+        }
+    }, { passive: true });
 
 
     // ==========================================
