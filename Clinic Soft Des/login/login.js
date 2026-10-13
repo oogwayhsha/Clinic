@@ -202,12 +202,12 @@ const rfidCardContainer = document.querySelector(".rfid-login");
 let lastHandledTapTime = 0;
 
 async function processRfidCard(cardUid) {
-  const cleanUid = String(cardUid).trim().toUpperCase();
+  const cleanUid = String(cardUid).trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   console.log("Processing RFID Card:", cleanUid);
 
   if (rfidUIDEl) rfidUIDEl.textContent = cleanUid;
   if (rfidStatusEl) {
-    rfidStatusEl.textContent = "Verifying card in database...";
+    rfidStatusEl.textContent = `Verifying card ${cleanUid}...`;
     rfidStatusEl.style.color = "#ffd41d";
   }
 
@@ -216,9 +216,10 @@ async function processRfidCard(cardUid) {
 
     if (!lookupSnap.exists()) {
       if (rfidStatusEl) {
-        rfidStatusEl.textContent = `Card ${cleanUid} not linked to any account.`;
+        rfidStatusEl.textContent = `Card ${cleanUid} not registered.`;
         rfidStatusEl.style.color = "#ef4444";
       }
+      alert(`Card ${cleanUid} is not registered yet.\n\nPlease register your account first and scan this card during registration.`);
       return;
     }
 
@@ -271,53 +272,78 @@ async function processRfidCard(cardUid) {
       rfidStatusEl.textContent = "RFID Login: " + (err.message || "Failed to authenticate");
       rfidStatusEl.style.color = "#ef4444";
     }
+    if (err.code === "auth/unauthorized-domain") {
+      alert("Firebase Error: oogwayhsha.github.io is not an authorized domain.\n\nPlease add oogwayhsha.github.io in Firebase Console > Authentication > Settings > Authorized Domains.");
+    } else {
+      alert("Login Error: " + err.message);
+    }
   }
 }
 
 // 1. Direct Phone NFC Tap (When visiting login.html on a smartphone)
-if (rfidCardContainer) {
-  rfidCardContainer.style.cursor = "pointer";
-  rfidCardContainer.title = "Tap to activate phone NFC reader";
+const scanNfcLoginBtn = document.getElementById("scanNfcLoginBtn");
 
-  if ("NDEFReader" in window && rfidStatusEl) {
-    rfidStatusEl.textContent = "Tap here to scan card with this phone";
-    rfidStatusEl.style.color = "#ffd41d";
+async function activateNfcLogin() {
+  if (!("NDEFReader" in window)) {
+    if (/FBAN|FBAV|Instagram|Line/i.test(navigator.userAgent)) {
+      alert("You are viewing this inside the Facebook/Messenger app.\n\nTo use NFC scanning, tap the 3 dots (⋮) in the top-right corner and select 'Open in Chrome'.");
+    } else {
+      alert("Web NFC is not available in this browser.\n\nPlease open this link directly in Google Chrome on an Android phone with NFC enabled.");
+    }
+    return;
   }
 
-  rfidCardContainer.addEventListener("click", async () => {
-    if (!("NDEFReader" in window)) {
-      if (rfidStatusEl) {
-        rfidStatusEl.textContent = "Waiting for card scan or reader input...";
-      }
-      return;
+  try {
+    const ndef = new NDEFReader();
+    await ndef.scan();
+
+    if (scanNfcLoginBtn) {
+      scanNfcLoginBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Scanner Active`;
+      scanNfcLoginBtn.style.background = "#10b981";
+      scanNfcLoginBtn.style.color = "#ffffff";
     }
 
-    try {
-      const ndef = new NDEFReader();
-      await ndef.scan();
+    if (rfidStatusEl) {
+      rfidStatusEl.textContent = "Hold your student/employee ID against the back of this phone...";
+      rfidStatusEl.style.color = "#10b981";
+    }
 
-      if (rfidStatusEl) {
-        rfidStatusEl.textContent = "NFC Active! Hold your card to the back of this phone...";
-        rfidStatusEl.style.color = "#10b981";
+    ndef.onreading = (event) => {
+      const rawSerial = event.serialNumber;
+      if (!rawSerial) return;
+      const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+      if (scanNfcLoginBtn) {
+        scanNfcLoginBtn.innerHTML = `<i class="fa-solid fa-check"></i> Scanned!`;
       }
 
-      ndef.onreading = (event) => {
-        const rawSerial = event.serialNumber;
-        if (!rawSerial) return;
-        const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        processRfidCard(cleanUid);
-      };
+      processRfidCard(cleanUid);
+    };
 
-      ndef.onreadingerror = () => {
-        if (rfidStatusEl) {
-          rfidStatusEl.textContent = "Could not read card. Hold it steady against back of phone.";
-          rfidStatusEl.style.color = "#ef4444";
-        }
-      };
-    } catch (err) {
-      console.warn("Direct NFC scan activation:", err);
-    }
+    ndef.onreadingerror = () => {
+      if (rfidStatusEl) {
+        rfidStatusEl.textContent = "Could not read card. Hold it steady against back of phone.";
+        rfidStatusEl.style.color = "#ef4444";
+      }
+    };
+  } catch (err) {
+    console.error("Direct NFC scan activation error:", err);
+    alert("NFC Scanner Error: " + err.message);
+  }
+}
+
+if (scanNfcLoginBtn) {
+  scanNfcLoginBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    activateNfcLogin();
+  });
+}
+
+if (rfidCardContainer) {
+  rfidCardContainer.style.cursor = "pointer";
+  rfidCardContainer.addEventListener("click", () => {
+    activateNfcLogin();
   });
 }
 

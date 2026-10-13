@@ -357,7 +357,7 @@ async function handleRegister() {
     const user = userCredential.user;
 
     // 2. Prepare Payload
-    const rfidUid = document.getElementById("regRfid")?.value.trim().toUpperCase() || "";
+    const rfidUid = document.getElementById("regRfid")?.value.trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "";
 
     const userData = {
       name: name,
