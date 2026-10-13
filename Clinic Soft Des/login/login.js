@@ -279,6 +279,11 @@ if (rfidCardContainer) {
   rfidCardContainer.style.cursor = "pointer";
   rfidCardContainer.title = "Tap to activate phone NFC reader";
 
+  if ("NDEFReader" in window && rfidStatusEl) {
+    rfidStatusEl.textContent = "Tap here to scan card with this phone";
+    rfidStatusEl.style.color = "#ffd41d";
+  }
+
   rfidCardContainer.addEventListener("click", async () => {
     if (!("NDEFReader" in window)) {
       if (rfidStatusEl) {
