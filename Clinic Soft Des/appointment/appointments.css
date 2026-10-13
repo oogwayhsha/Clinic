@@ -1,6 +1,5 @@
 /* =========================================
    APPOINTMENTS PAGES (student, employee, admin)
-   Same theme as dashboard.css / profile.css
 ========================================= */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -163,6 +162,20 @@ a { color: inherit; text-decoration: none; }
 .empty-state h4 { color: var(--navy); font-size: 18px; font-weight: 700; margin-bottom: 6px; }
 .empty-state p { color: var(--muted); font-size: 14px; line-height: 1.5; margin-bottom: 0; }
 .empty-state .btn-primary { margin-top: 18px; }
+
+/* HISTORY TIMELINE (student, employee and admin cards) */
+.history-list { list-style: none; margin-top: 12px; padding-left: 14px; border-left: 2px solid var(--line); display: grid; gap: 8px; }
+.history-item { position: relative; font-size: 12.5px; line-height: 1.45; color: #4e5b70; }
+.history-item::before { content: ""; position: absolute; left: -20px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: #c9d4ea; border: 2px solid #ffffff; }
+.history-item.pending::before   { background: var(--gold); }
+.history-item.confirmed::before { background: var(--green); }
+.history-item.completed::before { background: #2563eb; }
+.history-item.cancelled::before { background: #be123c; }
+.history-item.missed::before    { background: #8a94a6; }
+.history-item strong { color: var(--navy); font-weight: 700; }
+.history-item span { margin-left: 6px; color: var(--muted); }
+.history-item em { display: block; font-style: normal; color: var(--muted); }
+.appt-handled { margin-top: 6px; color: var(--muted); font-size: 12px; }
 
 /* MODAL */
 .modal { position: fixed; inset: 0; width: 100%; height: 100%; background: rgba(7, 21, 54, .55); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 1000; backdrop-filter: blur(4px); }
