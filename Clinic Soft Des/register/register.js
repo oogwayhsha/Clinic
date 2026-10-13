@@ -3,7 +3,7 @@
 // ==========================================
 import { auth, db } from "../firebase/firebase.js";
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 let currentRole = "student";
 
@@ -345,6 +345,28 @@ async function handleRegister() {
     return;
   }
 
+  // ------------------------------------------
+  // RFID UNIQUENESS CHECK
+  // ------------------------------------------
+  const rfidUid = document.getElementById("regRfid")?.value.trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "";
+
+  if (rfidUid) {
+    try {
+      const existingSnap = await get(ref(db, `rfid_lookup/${rfidUid}`));
+      if (existingSnap.exists()) {
+        setError("regRfid", "This RFID card is already registered to another account.");
+        if (regRfidStatus) {
+          regRfidStatus.textContent = "This card is already linked to another user.";
+          regRfidStatus.style.color = "#ef4444";
+        }
+        document.getElementById("regRfid")?.focus();
+        return;
+      }
+    } catch (checkErr) {
+      console.warn("Could not check RFID uniqueness:", checkErr);
+    }
+  }
+
   // ==========================================
   // FIREBASE REGISTRATION
   // ==========================================
@@ -511,7 +533,7 @@ if (regRfidInput) {
           regRfidStatus.style.color = "#ffd41d";
         }
 
-        ndef.onreading = (event) => {
+        ndef.onreading = async (event) => {
           const rawSerial = event.serialNumber;
           if (!rawSerial) return;
           const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -523,9 +545,26 @@ if (regRfidInput) {
           scanNfcBtn.style.background = "#35408e";
           scanNfcBtn.style.color = "#ffd41d";
 
-          if (regRfidStatus) {
-            regRfidStatus.textContent = `Card UID: ${cleanUid} captured!`;
-            regRfidStatus.style.color = "#10b981";
+          try {
+            const checkSnap = await get(ref(db, `rfid_lookup/${cleanUid}`));
+            if (checkSnap.exists()) {
+              setError("regRfid", "This RFID card is already linked to another account.");
+              if (regRfidStatus) {
+                regRfidStatus.textContent = "Card is already registered to another user!";
+                regRfidStatus.style.color = "#ef4444";
+              }
+            } else {
+              clearFieldError(regRfidInput);
+              if (regRfidStatus) {
+                regRfidStatus.textContent = `Card UID: ${cleanUid} is available!`;
+                regRfidStatus.style.color = "#10b981";
+              }
+            }
+          } catch (err) {
+            if (regRfidStatus) {
+              regRfidStatus.textContent = `Card UID: ${cleanUid} captured!`;
+              regRfidStatus.style.color = "#10b981";
+            }
           }
         };
 
@@ -544,20 +583,66 @@ if (regRfidInput) {
 
   // 2. Realtime listener (when registering on PC and tapping card on phone scanner)
   let lastRegTap = 0;
-  onValue(ref(db, "rfid_tap"), (snapshot) => {
+  onValue(ref(db, "rfid_tap"), async (snapshot) => {
     const tap = snapshot.val();
     if (!tap || !tap.cardUid || !tap.timestamp) return;
     if (tap.timestamp <= lastRegTap || Date.now() - tap.timestamp > 20000) return;
     lastRegTap = tap.timestamp;
 
-    regRfidInput.value = tap.cardUid;
-    regRfidInput.style.borderColor = "#10b981";
-    if (regRfidStatus) {
-      regRfidStatus.textContent = `Card UID ${tap.cardUid} received from phone!`;
-      regRfidStatus.style.color = "#10b981";
+    const cleanUid = String(tap.cardUid).trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    regRfidInput.value = cleanUid;
+
+    try {
+      const checkSnap = await get(ref(db, `rfid_lookup/${cleanUid}`));
+      if (checkSnap.exists()) {
+        setError("regRfid", "This RFID card is already linked to another account.");
+        if (regRfidStatus) {
+          regRfidStatus.textContent = "Card is already registered to another user!";
+          regRfidStatus.style.color = "#ef4444";
+        }
+      } else {
+        clearFieldError(regRfidInput);
+        regRfidInput.style.borderColor = "#10b981";
+        if (regRfidStatus) {
+          regRfidStatus.textContent = `Card UID ${cleanUid} is available!`;
+          regRfidStatus.style.color = "#10b981";
+        }
+        setTimeout(() => {
+          regRfidInput.style.borderColor = "";
+        }, 2000);
+      }
+    } catch (err) {
+      regRfidInput.style.borderColor = "#10b981";
+      setTimeout(() => {
+        regRfidInput.style.borderColor = "";
+      }, 2000);
     }
-    setTimeout(() => {
-      regRfidInput.style.borderColor = "";
-    }, 2000);
+  });
+
+  // 3. Manual change validation
+  regRfidInput.addEventListener("change", async () => {
+    const val = regRfidInput.value.trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    if (!val) {
+      clearFieldError(regRfidInput);
+      if (regRfidStatus) regRfidStatus.textContent = "";
+      return;
+    }
+    regRfidInput.value = val;
+    try {
+      const checkSnap = await get(ref(db, `rfid_lookup/${val}`));
+      if (checkSnap.exists()) {
+        setError("regRfid", "This RFID card is already linked to another account.");
+        if (regRfidStatus) {
+          regRfidStatus.textContent = "Card is already registered to another user!";
+          regRfidStatus.style.color = "#ef4444";
+        }
+      } else {
+        clearFieldError(regRfidInput);
+        if (regRfidStatus) {
+          regRfidStatus.textContent = `Card UID ${val} is available!`;
+          regRfidStatus.style.color = "#10b981";
+        }
+      }
+    } catch (err) {}
   });
 }
