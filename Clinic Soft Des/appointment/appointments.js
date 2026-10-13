@@ -1,5 +1,6 @@
 // ==========================================
 // APPOINTMENTS PAGE: book + manage appointments
+// (with appointment history)
 // ==========================================
 import { auth, db } from "../firebase/firebase.js";
 
@@ -35,8 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const PAGE_ROLE = document.body.dataset.role === "employee" ? "employee" : "student";
 
     const ROLE = {
-        student:  { idField: "studentId",  label: "Student",  other: "em-appointment.html" },
-        employee: { idField: "employeeId", label: "Employee", other: "st-appointment.html" }
+        student:  { idField: "studentId",  label: "Student",  other: "st-appointment.html" },
+        employee: { idField: "employeeId", label: "Employee", other: "em-appointment.html" }
     }[PAGE_ROLE];
 
     // The hard-coded admin account (Firebase Console > Authentication > User UID)
@@ -74,6 +75,15 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    // Text shown in the history timeline for each recorded action
+    const HISTORY_LABEL = {
+        booked:    "Appointment booked",
+        confirmed: "Approved by the clinic",
+        cancelled: "Cancelled",
+        completed: "Completed",
+        missed:    "Marked as missed"
+    };
 
 
     /* =========================================
@@ -193,6 +203,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let slotRequest = 0;       // ignores out-of-date availability responses
     let pendingCancel = null;  // appointment waiting for cancel confirmation
+
+
+    /* =========================================
+       HISTORY
+       Every change is recorded under
+       appointments/{id}/history/{pushId}
+       The clinic/admin side (Cloud Function) adds the
+       "confirmed", "completed" and "missed" entries.
+    ========================================= */
+
+    const historyEntry = (action, status, note = "") => ({
+        action,
+        status,
+        by: currentUser ? currentUser.uid : "",
+        byRole: PAGE_ROLE,
+        at: serverTimestamp(),
+        note
+    });
+
+    function historyTimeline(a) {
+
+        const items = Object.values(a.history || {})
+            .sort((x, y) => (Number(x.at) || 0) - (Number(y.at) || 0));
+
+        if (!items.length) return "";
+
+        return `
+            <ul class="history-list">
+                ${items.map((h) => `
+                    <li class="history-item ${escapeHtml(h.status || "")}">
+                        <strong>${escapeHtml(HISTORY_LABEL[h.action] || h.action || "Updated")}</strong>
+                        <span>${h.at ? new Date(Number(h.at)).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : ""}</span>
+                        ${h.note ? `<em>${escapeHtml(h.note)}</em>` : ""}
+                    </li>
+                `).join("")}
+            </ul>
+        `;
+    }
 
 
     /* =========================================
@@ -544,12 +592,14 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const newRef = push(ref(db, "appointments"));
+            const historyKey = push(ref(db, `appointments/${newRef.key}/history`)).key;
 
             const record = {
                 uid: currentUser.uid,
                 patientName: patientLabel.replace(/ \(.*\)$/, ""),
                 patientId,
                 patientPhone,
+                patientEmail: currentUser.email || "",   // used for the approval email
                 patientRole: PAGE_ROLE,
                 service: state.service,
                 serviceName: service.name,
@@ -557,7 +607,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 time: state.time,
                 reason: $("reason").value.trim(),
                 status: "pending",
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                history: {
+                    [historyKey]: historyEntry("booked", "pending")
+                }
             };
 
             // One write: the appointment and the slot it reserves succeed or fail together
@@ -682,7 +735,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return { label: "Pending", cls: "pending" };
     }
 
-    function appointmentCard(a, bucket) {
+    // bucket decides the badge/action; showHistory adds the timeline (History tab)
+    function appointmentCard(a, bucket, showHistory = false) {
 
         const service = SERVICES[a.service];
         const name = service ? service.name : (a.serviceName || "Appointment");
@@ -713,6 +767,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <p class="appt-when">${when}</p>
                     ${a.reason ? `<p class="appt-reason">${escapeHtml(a.reason)}</p>` : ""}
                     ${a.clinicNote ? `<p class="appt-reason"><strong>Clinic note:</strong> ${escapeHtml(a.clinicNote)}</p>` : ""}
+                    ${showHistory ? historyTimeline(a) : ""}
                 </div>
 
                 <div class="appt-side">
@@ -727,18 +782,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!appointmentsLoaded) return;
 
-        const groups = { upcoming: [], past: [], cancelled: [] };
+        const groups = { upcoming: [], past: [], cancelled: [], history: [] };
 
-        myAppointments.forEach((a) => groups[bucketOf(a)].push(a));
+        myAppointments.forEach((a) => {
+            groups[bucketOf(a)].push(a);
+            groups.history.push(a);   // History = every appointment, with its timeline
+        });
 
         // Soonest first for upcoming, most recent first for the rest
         groups.upcoming.sort((a, b) => appointmentTime(a) - appointmentTime(b));
         groups.past.sort((a, b) => appointmentTime(b) - appointmentTime(a));
         groups.cancelled.sort((a, b) => appointmentTime(b) - appointmentTime(a));
+        groups.history.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
 
         $("countUpcoming").textContent = groups.upcoming.length;
         $("countPast").textContent = groups.past.length;
         $("countCancelled").textContent = groups.cancelled.length;
+
+        // Only exists once the History button is added to the HTML
+        if ($("countHistory")) $("countHistory").textContent = groups.history.length;
 
         $("tabCount").textContent = groups.upcoming.length;
         $("tabCount").hidden = groups.upcoming.length === 0;
@@ -747,15 +809,16 @@ document.addEventListener("DOMContentLoaded", () => {
             button.classList.toggle("active", button.dataset.filter === activeFilter);
         });
 
-        const items = groups[activeFilter];
+        const items = groups[activeFilter] || [];
 
         if (items.length === 0) {
 
             const copy = {
                 upcoming: ["No upcoming appointments", "When you book a visit, it will show up here."],
                 past: ["No past appointments", "Your completed and missed visits will appear here."],
-                cancelled: ["No cancelled appointments", "Appointments you cancel will appear here."]
-            }[activeFilter];
+                cancelled: ["No cancelled appointments", "Appointments you cancel will appear here."],
+                history: ["No history yet", "Every booking, approval and cancellation will be recorded here."]
+            }[activeFilter] || ["Nothing here", ""];
 
             $("appointmentList").innerHTML = `
                 <div class="empty-state">
@@ -768,8 +831,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const isHistory = activeFilter === "history";
+
         $("appointmentList").innerHTML =
-            `<div class="appointment-list">${items.map((a) => appointmentCard(a, activeFilter)).join("")}</div>`;
+            `<div class="appointment-list">${items.map((a) =>
+                appointmentCard(a, isHistory ? bucketOf(a) : activeFilter, isHistory)
+            ).join("")}</div>`;
     }
 
     $("filters").addEventListener("click", (event) => {
@@ -863,9 +930,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
 
+            const historyKey = push(ref(db, `appointments/${a.id}/history`)).key;
+
             const changes = {
                 [`appointments/${a.id}/status`]: "cancelled",
-                [`appointments/${a.id}/cancelledAt`]: serverTimestamp()
+                [`appointments/${a.id}/cancelledAt`]: serverTimestamp(),
+                [`appointments/${a.id}/history/${historyKey}`]: historyEntry("cancelled", "cancelled")
             };
 
             // Free the time slot so someone else can book it
