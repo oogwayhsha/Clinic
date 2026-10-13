@@ -1,5 +1,6 @@
 // ==========================================
 // ADMIN: oversee all student and employee appointments
+// (with approval emails via EmailJS + appointment history)
 // ==========================================
 import { auth, db } from "../firebase/firebase.js";
 
@@ -11,6 +12,7 @@ import {
 import {
     ref,
     get,
+    push,
     update,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
@@ -33,6 +35,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // The hard-coded admin account (Firebase Console > Authentication > User UID)
     const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
+
+    // EmailJS (https://www.emailjs.com): fill these in from your EmailJS dashboard.
+    //   SERVICE_ID  = Email Services > your Gmail service
+    //   TEMPLATE_ID = Email Templates > your "appointment confirmed" template
+    //   PUBLIC_KEY  = Account > General > Public Key
+    // While they still say "YOUR_...", the page works normally but sends no email.
+    const EMAILJS = {
+        SERVICE_ID: "YOUR_SERVICE_ID",
+        TEMPLATE_ID: "YOUR_TEMPLATE_ID",
+        PUBLIC_KEY: "YOUR_PUBLIC_KEY"
+    };
+
+    const CLINIC_NAME = "School Clinic";
+
+    const HISTORY_LABEL = {
+        booked:    "Appointment booked",
+        confirmed: "Approved by the clinic",
+        cancelled: "Cancelled",
+        completed: "Completed",
+        missed:    "Marked as missed"
+    };
 
 
     /* =========================================
@@ -127,6 +150,46 @@ document.addEventListener("DOMContentLoaded", () => {
     const filters = { range: "all", status: "all", service: "all", role: "all", search: "" };
 
     let pendingCancel = null;
+
+
+    /* =========================================
+       HISTORY
+       Every change is recorded under
+       appointments/{id}/history/{pushId}
+    ========================================= */
+
+    function historyEntry(status, note = "") {
+        return {
+            action: status,              // confirmed | completed | missed | cancelled
+            status,
+            by: adminUser ? adminUser.uid : "",
+            byRole: "admin",
+            byName: adminName,
+            at: serverTimestamp(),
+            note
+        };
+    }
+
+    function historyTimeline(a) {
+
+        const items = Object.values(a.history || {})
+            .sort((x, y) => (Number(x.at) || 0) - (Number(y.at) || 0));
+
+        if (!items.length) return "";
+
+        return `
+            <ul class="history-list">
+                ${items.map((h) => `
+                    <li class="history-item ${escapeHtml(h.status || "")}">
+                        <strong>${escapeHtml(HISTORY_LABEL[h.action] || h.action || "Updated")}</strong>
+                        ${h.byRole === "admin" && h.byName ? `<span>by ${escapeHtml(h.byName)}</span>` : ""}
+                        <span>${h.at ? new Date(Number(h.at)).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : ""}</span>
+                        ${h.note ? `<em>${escapeHtml(h.note)}</em>` : ""}
+                    </li>
+                `).join("")}
+            </ul>
+        `;
+    }
 
 
     /* =========================================
@@ -308,7 +371,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ${a.reason ? `<p class="appt-reason">${escapeHtml(a.reason)}</p>` : ""}
                     ${a.clinicNote ? `<p class="appt-reason"><strong>Note sent:</strong> ${escapeHtml(a.clinicNote)}</p>` : ""}
+                    ${a.confirmationEmailSentAt ? `<p class="appt-handled">Confirmation email sent</p>` : ""}
                     ${a.handledByName ? `<p class="appt-handled">Last updated by ${escapeHtml(a.handledByName)}</p>` : ""}
+                    ${historyTimeline(a)}
                 </div>
 
                 <div class="appt-side">
@@ -763,6 +828,79 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
+       APPROVAL EMAIL (EmailJS)
+       Template variables to use in your EmailJS template:
+       {{to_name}} {{to_email}} {{service}} {{date}} {{time}} {{note}} {{clinic_name}}
+       and set the template's "To email" field to {{to_email}}
+    ========================================= */
+
+    const emailConfigured = () =>
+        Object.values(EMAILJS).every((v) => v && !String(v).startsWith("YOUR_"));
+
+    async function sendConfirmationEmail(a) {
+
+        const to = patientEmail(a);
+
+        if (!to) return { sent: false, reason: "no-email" };
+        if (!emailConfigured()) return { sent: false, reason: "not-configured" };
+
+        const endTime = formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES));
+
+        const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                service_id: EMAILJS.SERVICE_ID,
+                template_id: EMAILJS.TEMPLATE_ID,
+                user_id: EMAILJS.PUBLIC_KEY,
+                template_params: {
+                    to_email: to,
+                    to_name: patientName(a),
+                    service: serviceName(a),
+                    date: formatDateLong(a.date),
+                    time: `${formatTime(a.time)} – ${endTime}`,
+                    note: a.clinicNote || "",
+                    clinic_name: CLINIC_NAME
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`EmailJS ${response.status}: ${await response.text()}`);
+        }
+
+        // Remember that it was sent (also shows up on the appointment card)
+        await update(ref(db), {
+            [`appointments/${a.id}/confirmationEmailSentAt`]: serverTimestamp()
+        });
+
+        return { sent: true, to };
+    }
+
+    async function notifyConfirmed(a) {
+
+        try {
+
+            const result = await sendConfirmationEmail(a);
+
+            if (result.sent) {
+                toast(`Confirmation email sent to ${result.to}.`, "success");
+                await loadAppointments(true);
+            } else if (result.reason === "no-email") {
+                toast("Confirmed, but this patient has no email on file, so no email was sent.", "error");
+            } else {
+                console.info("EmailJS is not configured yet: no email sent.");
+            }
+
+        } catch (error) {
+
+            console.error("Email error:", error);
+            toast("Confirmed, but the confirmation email could not be sent.", "error");
+        }
+    }
+
+
+    /* =========================================
        ACTIONS: confirm / complete / missed / cancel
     ========================================= */
 
@@ -774,11 +912,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
 
+            const historyKey = push(ref(db, `appointments/${a.id}/history`)).key;
+
             const changes = {
                 [`appointments/${a.id}/status`]: status,
                 [`appointments/${a.id}/handledBy`]: adminUser.uid,
                 [`appointments/${a.id}/handledByName`]: adminName,
-                [`appointments/${a.id}/handledAt`]: serverTimestamp()
+                [`appointments/${a.id}/handledAt`]: serverTimestamp(),
+                // History: who changed it, to what, and when
+                [`appointments/${a.id}/history/${historyKey}`]: historyEntry(status, extra.clinicNote || "")
             };
 
             Object.entries(extra).forEach(([field, value]) => {
@@ -839,8 +981,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const [status, message] = messages[action];
         const saved = await setStatus(a, status);
 
-        if (saved) toast(message, "success");
-        else button.disabled = false;
+        if (saved) {
+            toast(message, "success");
+
+            // Approved: email the patient
+            if (status === "confirmed") await notifyConfirmed(a);
+        } else {
+            button.disabled = false;
+        }
     }
 
     $("appointmentList").addEventListener("click", handleAppointmentAction);
@@ -1025,7 +1173,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.warn("Could not check account type:", error);
             }
 
-            window.location.replace(isEmployee ? "../dashboard/em-appointment.html" : "../dashboard/st-appointment.html");
+            window.location.replace(isEmployee ? "../employee/em-appointment.html" : "../student/st-appointment.html");
             return;
         }
 
