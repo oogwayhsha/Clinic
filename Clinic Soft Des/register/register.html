@@ -120,6 +120,13 @@
           <span id="regConfirmPasswordError" class="error"></span>
         </div>
 
+        <!-- Optional RFID Card Field -->
+        <div class="form-group">
+          <label><i class="fa-solid fa-id-card-clip"></i> RFID Card UID <small style="color: #64748b; font-weight: normal;">(Optional - for tap login)</small></label>
+          <input type="text" id="regRfid" placeholder="e.g. 04A1B2C3 (tap on phone scanner or type)" autocomplete="off">
+          <span id="regRfidError" class="error"></span>
+        </div>
+
         <!-- Register Action Button -->
         <button type="button" id="registerBtn" class="btn-primary">
           <span>Complete Registration</span>

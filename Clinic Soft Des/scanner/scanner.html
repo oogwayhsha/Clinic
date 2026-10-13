@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NUFV Clinic - RFID Scanner Station</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #35408e;
+            --primary-dark: #27306e;
+            --primary-light: #4956b8;
+            --gold: #ffd41d;
+            --gold-dark: #d4ac0d;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 16px;
+        }
+
+        .header {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(53, 64, 142, 0.5);
+            border: 1px solid rgba(255, 212, 29, 0.3);
+            color: var(--gold);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .badge span {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse-dot 1.8s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-top: 12px;
+            color: #ffffff;
+        }
+
+        p.subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* SCAN ZONE */
+        .scan-container {
+            width: 100%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        .nfc-target {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle, rgba(53, 64, 142, 0.4) 0%, rgba(15, 23, 42, 0.8) 70%);
+            border: 2px dashed rgba(255, 212, 29, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nfc-target.active {
+            border-color: var(--gold);
+            box-shadow: 0 0 35px rgba(255, 212, 29, 0.3);
+        }
+
+        .nfc-target.scanned {
+            border-color: var(--success);
+            box-shadow: 0 0 45px rgba(16, 185, 129, 0.5);
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(15, 23, 42, 0.8) 70%);
+        }
+
+        .ripple {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 212, 29, 0.3);
+            animation: ripple-wave 2.5s infinite linear;
+            pointer-events: none;
+        }
+
+        .ripple:nth-child(2) {
+            animation-delay: 1.25s;
+        }
+
+        @keyframes ripple-wave {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        .nfc-icon {
+            font-size: 3.5rem;
+            color: var(--gold);
+            margin-bottom: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .nfc-target.active .nfc-icon {
+            transform: scale(1.08);
+        }
+
+        .nfc-text {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: center;
+        }
+
+        /* STATUS BOX */
+        .status-card {
+            width: 100%;
+            max-width: 360px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            backdrop-filter: blur(12px);
+            margin-top: 15px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-val {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--gold);
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 212, 29, 0.2);
+        }
+
+        .status-message {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 8px 0 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* CONTROLS */
+        .controls {
+            width: 100%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .btn-start {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #35408e, #4956b8);
+            border: 1px solid rgba(255, 212, 29, 0.4);
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(53, 64, 142, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-start:active {
+            transform: scale(0.98);
+        }
+
+        .manual-box {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .manual-input {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-family: monospace;
+            outline: none;
+        }
+
+        .manual-input:focus {
+            border-color: var(--gold);
+        }
+
+        .btn-send {
+            background: rgba(255, 212, 29, 0.15);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            border-radius: 10px;
+            padding: 0 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-send:active {
+            background: var(--gold);
+            color: #0f172a;
+        }
+
+        .footer {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="badge">
+            <span></span>
+            NUFV Clinic Scanner
+        </div>
+        <h1>Phone RFID Reader</h1>
+        <p class="subtitle">Tap student or employee card on back of phone</p>
+    </div>
+
+    <div class="scan-container">
+        <div class="nfc-target" id="nfcTarget">
+            <div class="ripple"></div>
+            <div class="ripple"></div>
+            <i class="fa-solid fa-id-card-clip nfc-icon" id="nfcIcon"></i>
+            <span class="nfc-text" id="nfcPrompt">Tap "Activate Scanner"</span>
+        </div>
+
+        <div class="status-card">
+            <div class="status-row">
+                <span class="status-label">Last Scanned UID</span>
+                <span class="status-val" id="lastUidDisplay">None</span>
+            </div>
+            <div class="status-message" id="statusMsg">
+                <i class="fa-solid fa-circle-info"></i> Ready to scan
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn-start" id="startBtn">
+            <i class="fa-solid fa-wifi"></i>
+            Activate NFC Scanner
+        </button>
+
+        <div class="manual-box">
+            <input type="text" class="manual-input" id="manualUid" placeholder="Or enter UID (e.g. 04A1B2C3)" />
+            <button class="btn-send" id="manualBtn">Send</button>
+        </div>
+    </div>
+
+    <div class="footer">
+        Connected to NUFV Clinic Firebase Realtime Database
+    </div>
+
+    <!-- FIREBASE INTEGRATION -->
+    <script type="module">
+        import { db } from "../firebase/firebase.js";
+        import { ref, set } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+
+        const startBtn = document.getElementById("startBtn");
+        const nfcTarget = document.getElementById("nfcTarget");
+        const nfcPrompt = document.getElementById("nfcPrompt");
+        const nfcIcon = document.getElementById("nfcIcon");
+        const lastUidDisplay = document.getElementById("lastUidDisplay");
+        const statusMsg = document.getElementById("statusMsg");
+        const manualInput = document.getElementById("manualUid");
+        const manualBtn = document.getElementById("manualBtn");
+
+        let isScanning = false;
+
+        // Broadcast UID to Firebase
+        async function broadcastCardScan(cardUid) {
+            const cleanUid = cardUid.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+            lastUidDisplay.textContent = cleanUid;
+
+            // Visual feedback
+            nfcTarget.classList.add("scanned");
+            nfcIcon.className = "fa-solid fa-check nfc-icon";
+            statusMsg.innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success)"></i> Broadcasted to PC login!`;
+
+            // Haptic feedback (vibration)
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+            }
+
+            try {
+                await set(ref(db, "rfid_tap"), {
+                    cardUid: cleanUid,
+                    timestamp: Date.now()
+                });
+                console.log("Successfully broadcasted UID:", cleanUid);
+            } catch (err) {
+                console.error("Firebase broadcast error:", err);
+                statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: var(--danger)"></i> Error sending to Firebase`;
+            }
+
+            setTimeout(() => {
+                nfcTarget.classList.remove("scanned");
+                nfcIcon.className = "fa-solid fa-id-card-clip nfc-icon";
+                if (isScanning) {
+                    statusMsg.innerHTML = `<i class="fa-solid fa-wave-square"></i> Scanner active — hold card to phone`;
+                }
+            }, 2500);
+        }
+
+        // Web NFC Activation (Chrome on Android)
+        startBtn.addEventListener("click", async () => {
+            if (!("NDEFReader" in window)) {
+                alert("Web NFC is not supported on this browser.\n\nTips:\n1. On Android: Use Google Chrome over HTTPS (or localhost).\n2. Alternatively, test using the manual UID box below!");
+                return;
+            }
+
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                isScanning = true;
+
+                startBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Scanner Active`;
+                startBtn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+                nfcTarget.classList.add("active");
+                nfcPrompt.textContent = "Hold ID card to back of phone";
+                statusMsg.innerHTML = `<i class="fa-solid fa-wave-square"></i> Listening for NFC/RFID taps...`;
+
+                ndef.onreading = (event) => {
+                    const serial = event.serialNumber;
+                    if (serial) {
+                        broadcastCardScan(serial);
+                    }
+                };
+
+                ndef.onreadingerror = () => {
+                    statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: var(--gold)"></i> Reading error. Hold card still.`;
+                };
+
+            } catch (error) {
+                console.error("NFC activation failed:", error);
+                alert("Could not start NFC: " + error.message);
+            }
+        });
+
+        // Manual UID Send (Great for testing without physical NFC or from desktop)
+        manualBtn.addEventListener("click", () => {
+            const val = manualInput.value.trim();
+            if (!val) return;
+            broadcastCardScan(val);
+            manualInput.value = "";
+        });
+
+        manualInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                manualBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

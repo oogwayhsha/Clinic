@@ -1,6 +1,6 @@
 import { auth, db } from "../firebase/firebase.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { ref, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { ref, get, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 const loginForm = document.getElementById("loginForm");
 
@@ -190,5 +190,94 @@ toggleLoginPassword.addEventListener("click", function () {
     passwordField.type = "password";
     this.classList.remove("fa-eye-slash");
     this.classList.add("fa-eye");
+  }
+});
+
+// ==========================================
+// RFID REALTIME SCAN LISTENER (via Phone or Scanner)
+// ==========================================
+const rfidUIDEl = document.getElementById("rfidUID");
+const rfidStatusEl = document.getElementById("rfidStatus");
+let lastHandledTapTime = 0;
+
+onValue(ref(db, "rfid_tap"), async (snapshot) => {
+  const tap = snapshot.val();
+  if (!tap || !tap.cardUid || !tap.timestamp) return;
+
+  // Ignore tap if already handled or older than 25 seconds
+  if (tap.timestamp <= lastHandledTapTime || Date.now() - tap.timestamp > 25000) {
+    return;
+  }
+  lastHandledTapTime = tap.timestamp;
+
+  const cardUid = String(tap.cardUid).trim().toUpperCase();
+  console.log("Incoming RFID Tap detected:", cardUid);
+
+  if (rfidUIDEl) rfidUIDEl.textContent = cardUid;
+  if (rfidStatusEl) {
+    rfidStatusEl.textContent = "Verifying card in database...";
+    rfidStatusEl.style.color = "#ffd41d";
+  }
+
+  try {
+    const lookupSnap = await get(ref(db, `rfid_lookup/${cardUid}`));
+
+    if (!lookupSnap.exists()) {
+      if (rfidStatusEl) {
+        rfidStatusEl.textContent = `Card ${cardUid} not linked to any account.`;
+        rfidStatusEl.style.color = "#ef4444";
+      }
+      return;
+    }
+
+    const record = lookupSnap.val();
+    console.log("Matched RFID user record:", record);
+
+    if (rfidStatusEl) {
+      rfidStatusEl.textContent = `Card verified! Logging in as ${record.name || record.email}...`;
+      rfidStatusEl.style.color = "#10b981";
+    }
+
+    // Automatically set the role on form
+    if (roleField && record.role) {
+      roleField.value = record.role;
+      clearError(roleField, roleError);
+    }
+    // Auto fill the email
+    if (emailField && record.email) {
+      emailField.value = record.email;
+      clearError(emailField, emailError);
+    }
+
+    // If an authentication passKey or password was saved during card registration:
+    if (record.email && record.authKey) {
+      const userCred = await signInWithEmailAndPassword(auth, record.email, record.authKey);
+      console.log("RFID Login successful:", userCred.user.uid);
+
+      const destinations = {
+        student: "../dashboard/dashboard.html",
+        employee: "../dashboard/dashboard.html",
+        admin: "../admin/admin.html"
+      };
+
+      setTimeout(() => {
+        window.location.href = destinations[record.role] || "../dashboard/dashboard.html";
+      }, 700);
+    } else {
+      // If no password stored, focus password field so user can enter password
+      if (passwordField) {
+        passwordField.focus();
+        if (rfidStatusEl) {
+          rfidStatusEl.textContent = `Welcome ${record.name || record.email}! Enter your password to continue.`;
+          rfidStatusEl.style.color = "#ffd41d";
+        }
+      }
+    }
+  } catch (err) {
+    console.error("RFID login error:", err);
+    if (rfidStatusEl) {
+      rfidStatusEl.textContent = "RFID Login: " + (err.message || "Failed to authenticate");
+      rfidStatusEl.style.color = "#ef4444";
+    }
   }
 });

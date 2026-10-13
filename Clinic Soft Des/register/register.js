@@ -3,7 +3,7 @@
 // ==========================================
 import { auth, db } from "../firebase/firebase.js";
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { ref, set } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 let currentRole = "student";
 
@@ -341,12 +341,18 @@ async function handleRegister() {
     const user = userCredential.user;
 
     // 2. Prepare Payload
+    const rfidUid = document.getElementById("regRfid")?.value.trim().toUpperCase() || "";
+
     const userData = {
       name: name,
       email: email,
       role: currentRole,
       createdAt: new Date().toISOString()
     };
+
+    if (rfidUid) {
+      userData.rfidUid = rfidUid;
+    }
 
     if (currentRole === "student") {
       userData.studentId = studentId;
@@ -361,8 +367,23 @@ async function handleRegister() {
     const folder = currentRole === "student" ? "students" : "employees";
     await set(ref(db, `${folder}/${user.uid}`), userData);
 
-    // 4. Success Redirect
-    alert("Registration Successful!");
+    // 4. Save RFID Lookup Index if card was provided
+    if (rfidUid) {
+      try {
+        await set(ref(db, `rfid_lookup/${rfidUid}`), {
+          uid: user.uid,
+          email: email,
+          role: currentRole,
+          name: name,
+          authKey: password
+        });
+      } catch (rfidErr) {
+        console.warn("Could not save rfid_lookup entry:", rfidErr);
+      }
+    }
+
+    // 5. Success Redirect
+    alert("Registration Successful!" + (rfidUid ? "\nRFID Card linked successfully!" : ""));
     window.location.href = "../login/login.html";
 
   } catch (error) {
@@ -445,3 +466,23 @@ function setupToggle(iconId, inputId) {
 
 setupToggle("togglePassword", "regPassword");
 setupToggle("toggleConfirmPassword", "regConfirmPassword");
+
+// ==========================================
+// LIVE RFID TAP LISTENER FOR REGISTRATION
+// ==========================================
+const regRfidInput = document.getElementById("regRfid");
+if (regRfidInput) {
+  let lastRegTap = 0;
+  onValue(ref(db, "rfid_tap"), (snapshot) => {
+    const tap = snapshot.val();
+    if (!tap || !tap.cardUid || !tap.timestamp) return;
+    if (tap.timestamp <= lastRegTap || Date.now() - tap.timestamp > 20000) return;
+    lastRegTap = tap.timestamp;
+
+    regRfidInput.value = tap.cardUid;
+    regRfidInput.style.borderColor = "#10b981";
+    setTimeout(() => {
+      regRfidInput.style.borderColor = "";
+    }, 2000);
+  });
+}
