@@ -91,9 +91,6 @@ const INPUT_RULES = {
   // Letters (incl. accented), spaces, . ' -
   regName:        { block: /[^A-Za-zÀ-ÿ.'\- ]/g,            max: 60 },
 
-  // Digits and hyphen only (e.g. 2022-1234567) -> 4 + hyphen + 7 = 12 chars
-  studentId:      { block: /[^0-9-]/g,                       max: 12 },
-
   // Letters, spaces, & . - ( )
   studentProgram: { block: /[^A-Za-z&.\-() ]/g,             max: 40 },
 
@@ -138,6 +135,24 @@ Object.entries(INPUT_RULES).forEach(([id, rule]) => {
     }
   });
 });
+
+// ==========================================
+// STUDENT ID FORMATTER (YYYY-XXXXXX or YYYY-XXXXXXX)
+// ==========================================
+// Automatically inserts hyphen after 4 digits, allowing pure numbers or manual typing
+function formatStudentId(value) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 4) return digits;
+  return digits.slice(0, 4) + "-" + digits.slice(4);
+}
+
+const studentIdInput = document.getElementById("studentId");
+if (studentIdInput) {
+  studentIdInput.maxLength = 12;
+  studentIdInput.addEventListener("input", () => {
+    studentIdInput.value = formatStudentId(studentIdInput.value);
+  });
+}
 
 // ==========================================
 // EMPLOYEE ID FORMATTER  (AAA-0000-000)
@@ -246,7 +261,8 @@ async function handleRegister() {
   let employeeDept = "";
 
   if (currentRole === "student") {
-    studentId = document.getElementById("studentId").value.trim();
+    studentId = formatStudentId(document.getElementById("studentId").value.trim());
+    document.getElementById("studentId").value = studentId;
     studentProgram = document.getElementById("studentProgram").value.trim();
     studentYear = document.getElementById("studentYear").value;
 
