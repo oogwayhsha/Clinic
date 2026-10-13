@@ -468,10 +468,65 @@ setupToggle("togglePassword", "regPassword");
 setupToggle("toggleConfirmPassword", "regConfirmPassword");
 
 // ==========================================
-// LIVE RFID TAP LISTENER FOR REGISTRATION
+// DIRECT PHONE NFC SCANNER + LIVE TAP SYNC
 // ==========================================
 const regRfidInput = document.getElementById("regRfid");
+const scanNfcBtn = document.getElementById("scanNfcBtn");
+const regRfidStatus = document.getElementById("regRfidStatus");
+
 if (regRfidInput) {
+  // 1. Direct Phone NFC Scanner (when registering directly on smartphone)
+  if (scanNfcBtn) {
+    scanNfcBtn.addEventListener("click", async () => {
+      if (!("NDEFReader" in window)) {
+        alert("Direct phone tapping requires Google Chrome on an Android phone with NFC turned on.\n\nIf you are on a computer, you can type the UID or use your phone scanner station.");
+        return;
+      }
+
+      try {
+        const ndef = new NDEFReader();
+        await ndef.scan();
+
+        scanNfcBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Hold card to back...`;
+        scanNfcBtn.style.background = "#10b981";
+        scanNfcBtn.style.color = "#ffffff";
+        if (regRfidStatus) {
+          regRfidStatus.textContent = "Hold your student/employee ID against the back of your phone...";
+          regRfidStatus.style.color = "#ffd41d";
+        }
+
+        ndef.onreading = (event) => {
+          const rawSerial = event.serialNumber;
+          if (!rawSerial) return;
+          const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+          regRfidInput.value = cleanUid;
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+          scanNfcBtn.innerHTML = `<i class="fa-solid fa-check"></i> Scanned!`;
+          scanNfcBtn.style.background = "#35408e";
+          scanNfcBtn.style.color = "#ffd41d";
+
+          if (regRfidStatus) {
+            regRfidStatus.textContent = `Card UID: ${cleanUid} captured!`;
+            regRfidStatus.style.color = "#10b981";
+          }
+        };
+
+        ndef.onreadingerror = () => {
+          if (regRfidStatus) {
+            regRfidStatus.textContent = "Could not read card. Hold it steady against the back of your phone.";
+            regRfidStatus.style.color = "#ef4444";
+          }
+        };
+      } catch (err) {
+        console.error("NFC activation error:", err);
+        alert("NFC Error: " + err.message);
+      }
+    });
+  }
+
+  // 2. Realtime listener (when registering on PC and tapping card on phone scanner)
   let lastRegTap = 0;
   onValue(ref(db, "rfid_tap"), (snapshot) => {
     const tap = snapshot.val();
@@ -481,6 +536,10 @@ if (regRfidInput) {
 
     regRfidInput.value = tap.cardUid;
     regRfidInput.style.borderColor = "#10b981";
+    if (regRfidStatus) {
+      regRfidStatus.textContent = `Card UID ${tap.cardUid} received from phone!`;
+      regRfidStatus.style.color = "#10b981";
+    }
     setTimeout(() => {
       regRfidInput.style.borderColor = "";
     }, 2000);

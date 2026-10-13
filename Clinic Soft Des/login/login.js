@@ -194,37 +194,29 @@ toggleLoginPassword.addEventListener("click", function () {
 });
 
 // ==========================================
-// RFID REALTIME SCAN LISTENER (via Phone or Scanner)
+// RFID CARD PROCESSOR & DIRECT PHONE SCANNER
 // ==========================================
 const rfidUIDEl = document.getElementById("rfidUID");
 const rfidStatusEl = document.getElementById("rfidStatus");
+const rfidCardContainer = document.querySelector(".rfid-login");
 let lastHandledTapTime = 0;
 
-onValue(ref(db, "rfid_tap"), async (snapshot) => {
-  const tap = snapshot.val();
-  if (!tap || !tap.cardUid || !tap.timestamp) return;
+async function processRfidCard(cardUid) {
+  const cleanUid = String(cardUid).trim().toUpperCase();
+  console.log("Processing RFID Card:", cleanUid);
 
-  // Ignore tap if already handled or older than 25 seconds
-  if (tap.timestamp <= lastHandledTapTime || Date.now() - tap.timestamp > 25000) {
-    return;
-  }
-  lastHandledTapTime = tap.timestamp;
-
-  const cardUid = String(tap.cardUid).trim().toUpperCase();
-  console.log("Incoming RFID Tap detected:", cardUid);
-
-  if (rfidUIDEl) rfidUIDEl.textContent = cardUid;
+  if (rfidUIDEl) rfidUIDEl.textContent = cleanUid;
   if (rfidStatusEl) {
     rfidStatusEl.textContent = "Verifying card in database...";
     rfidStatusEl.style.color = "#ffd41d";
   }
 
   try {
-    const lookupSnap = await get(ref(db, `rfid_lookup/${cardUid}`));
+    const lookupSnap = await get(ref(db, `rfid_lookup/${cleanUid}`));
 
     if (!lookupSnap.exists()) {
       if (rfidStatusEl) {
-        rfidStatusEl.textContent = `Card ${cardUid} not linked to any account.`;
+        rfidStatusEl.textContent = `Card ${cleanUid} not linked to any account.`;
         rfidStatusEl.style.color = "#ef4444";
       }
       return;
@@ -280,4 +272,60 @@ onValue(ref(db, "rfid_tap"), async (snapshot) => {
       rfidStatusEl.style.color = "#ef4444";
     }
   }
+}
+
+// 1. Direct Phone NFC Tap (When visiting login.html on a smartphone)
+if (rfidCardContainer) {
+  rfidCardContainer.style.cursor = "pointer";
+  rfidCardContainer.title = "Tap to activate phone NFC reader";
+
+  rfidCardContainer.addEventListener("click", async () => {
+    if (!("NDEFReader" in window)) {
+      if (rfidStatusEl) {
+        rfidStatusEl.textContent = "Waiting for card scan or reader input...";
+      }
+      return;
+    }
+
+    try {
+      const ndef = new NDEFReader();
+      await ndef.scan();
+
+      if (rfidStatusEl) {
+        rfidStatusEl.textContent = "NFC Active! Hold your card to the back of this phone...";
+        rfidStatusEl.style.color = "#10b981";
+      }
+
+      ndef.onreading = (event) => {
+        const rawSerial = event.serialNumber;
+        if (!rawSerial) return;
+        const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        processRfidCard(cleanUid);
+      };
+
+      ndef.onreadingerror = () => {
+        if (rfidStatusEl) {
+          rfidStatusEl.textContent = "Could not read card. Hold it steady against back of phone.";
+          rfidStatusEl.style.color = "#ef4444";
+        }
+      };
+    } catch (err) {
+      console.warn("Direct NFC scan activation:", err);
+    }
+  });
+}
+
+// 2. Realtime Broadcast Listener (When login page is on PC and phone is used as scanner)
+onValue(ref(db, "rfid_tap"), async (snapshot) => {
+  const tap = snapshot.val();
+  if (!tap || !tap.cardUid || !tap.timestamp) return;
+
+  // Ignore tap if already handled or older than 25 seconds
+  if (tap.timestamp <= lastHandledTapTime || Date.now() - tap.timestamp > 25000) {
+    return;
+  }
+  lastHandledTapTime = tap.timestamp;
+
+  processRfidCard(tap.cardUid);
 });

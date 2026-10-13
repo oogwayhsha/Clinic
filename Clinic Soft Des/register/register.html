@@ -123,8 +123,14 @@
         <!-- Optional RFID Card Field -->
         <div class="form-group">
           <label><i class="fa-solid fa-id-card-clip"></i> RFID Card UID <small style="color: #64748b; font-weight: normal;">(Optional - for tap login)</small></label>
-          <input type="text" id="regRfid" placeholder="e.g. 04A1B2C3 (tap on phone scanner or type)" autocomplete="off">
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="regRfid" placeholder="UID or tap 'Scan with Phone'" autocomplete="off" style="flex: 1;">
+            <button type="button" id="scanNfcBtn" style="background: #35408e; color: #ffd41d; border: 1px solid rgba(255, 212, 29, 0.4); border-radius: 8px; padding: 0 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; white-space: nowrap; transition: all 0.2s;">
+              <i class="fa-solid fa-wifi"></i> <span>Scan with Phone</span>
+            </button>
+          </div>
           <span id="regRfidError" class="error"></span>
+          <span id="regRfidStatus" style="font-size: 0.8rem; color: #64748b; margin-top: 4px; display: block;"></span>
         </div>
 
         <!-- Register Action Button -->
