@@ -15,7 +15,7 @@
 /* Toolbar */
 .toolbar { padding: 20px 24px; }
 .toolbar .filters { margin-bottom: 16px; }
-.toolbar-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 14px; }
+.toolbar-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr)); gap: 14px; }
 .toolbar .form-group { margin-bottom: 0; }
 .form-group input[type="search"], .form-group select { width: 100%; border: 1px solid #dce2ec; border-radius: 9px; padding: 11px 12px; color: var(--text); background: white; outline: none; transition: .2s ease; }
 .form-group input[type="search"]:focus, .form-group select:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #eaf0ff; }
@@ -663,14 +663,44 @@
     padding: 40px 10px;
 }
 
+/* =========================================
+   CLINIC STAFF MANAGEMENT
+========================================= */
+.staff-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.staff-head h3 { color: var(--navy); font-size: 21px; font-weight: 700; }
+.staff-head p { color: var(--muted); font-size: 13px; margin-top: 6px; max-width: 620px; line-height: 1.5; }
+.staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.staff-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 10px 35px rgba(11, 28, 78, .05); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.staff-card.inactive { opacity: .6; }
+.staff-card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.staff-card-top h4 { color: var(--navy); font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.staff-card-top .type-chip + .type-chip { margin-left: 4px; }
+.staff-line { color: #4e5b70; font-size: 13px; overflow-wrap: anywhere; }
+.staff-line a { color: var(--blue); font-weight: 600; }
+.staff-line.muted { color: var(--muted); font-size: 12.5px; }
+.staff-load { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.staff-load span { border-radius: 30px; padding: 4px 10px; background: #f2f5fb; color: #4e5b70; font-size: 11.5px; }
+.staff-load strong { color: var(--navy); }
+.staff-card .appt-actions { justify-content: flex-start; margin-top: auto; }
+.type-chip.staff-doctor  { background: #eff6ff; color: #2563eb; }
+.type-chip.staff-nurse   { background: #f0fdfa; color: #0d9488; }
+.type-chip.staff-dentist { background: #fff7ed; color: #ea580c; }
+.type-chip.off { background: #f1f3f7; color: #5b6678; }
+.table-provider { color: var(--navy); font-weight: 600; font-size: 13px; }
+.small-note { font-size: 12.5px; margin-top: 12px; color: var(--muted); }
+.error-text { min-height: 18px; margin-top: 8px; color: #be123c; font-size: 12.5px; font-weight: 600; }
+.modal-field input[readonly] { background: #f6f7f9; color: var(--muted); }
+
 /* RESPONSIVE */
 @media (max-width: 1000px) {
-    .toolbar-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .toolbar-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .toolbar-fields .search { grid-column: 1 / -1; }
 }
 
 @media (max-width: 800px) {
     .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .main-view-switcher { width: 100%; flex-wrap: wrap; }
+    .view-switch-btn { flex: 1 1 auto; justify-content: center; padding: 9px 12px; font-size: 12.5px; }
     .header-actions { width: 100%; }
     .header-actions button { flex: 1; }
 }

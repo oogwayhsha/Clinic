@@ -1,6 +1,7 @@
 import { auth, db } from "../firebase/firebase.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
-import { ref, get, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { ADMIN_UID } from "../shared/config.js";
 
 const loginForm = document.getElementById("loginForm");
 
@@ -16,6 +17,20 @@ const loginMessage = document.getElementById("loginMessage");
 // Admin accounts are NOT registrable. Create them manually in
 // Firebase Console > Authentication > Add user, then list the email here.
 const ADMIN_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real admin email
+
+const DESTINATIONS = {
+  student: "../dashboard/dashboard.html",
+  employee: "../dashboard/dashboard.html",
+  staff: "../staff/staff.html",
+  admin: "../admin/admin.html"
+};
+
+const ROLE_NAMES = {
+  student: "student",
+  employee: "employee",
+  staff: "clinic staff",
+  admin: "admin"
+};
 
 // ==========================================
 // HELPERS
@@ -65,6 +80,47 @@ passwordField.addEventListener("input", () => {
 });
 
 // ==========================================
+// ACCOUNT TYPE CHECK
+// Returns null when the signed-in account matches the chosen role,
+// otherwise a message (and the user is signed out again).
+// ==========================================
+async function checkRole(user, role) {
+  const isAdminAccount = user.uid === ADMIN_UID || ADMIN_EMAILS.includes((user.email || "").toLowerCase());
+
+  if ((role === "admin") !== isAdminAccount) {
+    await signOut(auth);
+    return "This account is not " + (role === "admin" ? "an admin" : "a " + ROLE_NAMES[role]) + " account.";
+  }
+
+  if (role === "staff") {
+    const snap = await get(ref(db, `staff/${user.uid}`));
+
+    if (!snap.exists()) {
+      await signOut(auth);
+      return "This account is not a clinic staff account.";
+    }
+
+    if (snap.val().active === false) {
+      await signOut(auth);
+      return "This staff account has been deactivated. Please contact the clinic admin.";
+    }
+  }
+
+  // Student / Employee: the account must exist in the matching folder
+  if (role === "student" || role === "employee") {
+    const folder = role === "student" ? "students" : "employees";
+    const snap = await get(ref(db, `${folder}/${user.uid}`));
+
+    if (!snap.exists()) {
+      await signOut(auth);
+      return "This account is not a " + role + " account.";
+    }
+  }
+
+  return null;
+}
+
+// ==========================================
 // LOGIN SUBMIT
 // ==========================================
 loginForm.addEventListener("submit", async function (event) {
@@ -106,24 +162,12 @@ loginForm.addEventListener("submit", async function (event) {
   // ==========================================
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const isAdminAccount = ADMIN_EMAILS.includes(userCredential.user.email.toLowerCase());
 
-    // Selected role must match the account type
-    if ((role === "admin") !== isAdminAccount) {
-      await signOut(auth);
-      setError(roleField, roleError, "This account is not a " + role + " account.");
+    const problem = await checkRole(userCredential.user, role);
+
+    if (problem) {
+      setError(roleField, roleError, problem);
       return;
-    }
-
-    // Student / Employee: the account must exist in the matching folder
-    if (role !== "admin") {
-      const folder = role === "student" ? "students" : "employees";
-      const snap = await get(ref(db, `${folder}/${userCredential.user.uid}`));
-      if (!snap.exists()) {
-        await signOut(auth);
-        setError(roleField, roleError, "This account is not a " + role + " account.");
-        return;
-      }
     }
 
     console.log("Logged in UID:", userCredential.user.uid);
@@ -168,115 +212,217 @@ loginForm.addEventListener("submit", async function (event) {
 
   alert("Login Successful!");
 
-  const destinations = {
-    student: "../dashboard/dashboard.html",
-    employee: "../dashboard/dashboard.html",
-    admin: "../admin/admin.html" // adjust to your admin page path
-  };
-  window.location.href = destinations[role];
+  window.location.href = DESTINATIONS[role];
 });
 
 // ==========================================
 // SHOW / HIDE PASSWORD
 // ==========================================
-const toggleLoginPassword = document.getElementById("toggleLoginPassword");
+function setupToggle(iconId, input) {
+  const icon = document.getElementById(iconId);
+  if (!icon || !input) return;
 
-toggleLoginPassword.addEventListener("click", function () {
-  if (passwordField.type === "password") {
-    passwordField.type = "text";
-    this.classList.remove("fa-eye");
-    this.classList.add("fa-eye-slash");
-  } else {
-    passwordField.type = "password";
-    this.classList.remove("fa-eye-slash");
-    this.classList.add("fa-eye");
-  }
-});
+  icon.addEventListener("click", function () {
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    this.classList.toggle("fa-eye", !show);
+    this.classList.toggle("fa-eye-slash", show);
+  });
+}
+
+setupToggle("toggleLoginPassword", passwordField);
 
 // ==========================================
-// RFID CARD PROCESSOR & DIRECT PHONE SCANNER
+// RFID / NFC LOGIN
+// A card tap only identifies the account. The owner must still type
+// their password, so a lost or borrowed ID can't be used to log in.
 // ==========================================
 const rfidUIDEl = document.getElementById("rfidUID");
 const rfidStatusEl = document.getElementById("rfidStatus");
 const rfidCardContainer = document.querySelector(".rfid-login");
 let lastHandledTapTime = 0;
 
+const tapModal = document.getElementById("tapModal");
+const tapForm = document.getElementById("tapForm");
+const tapPassword = document.getElementById("tapPassword");
+const tapUsername = document.getElementById("tapUsername");
+const tapError = document.getElementById("tapError");
+const tapSubmit = document.getElementById("tapSubmit");
+
+const MAX_TAP_ATTEMPTS = 5;
+
+let tapRecord = null;   // rfid_lookup entry waiting for the password
+let tapCardUid = "";
+let tapAttempts = 0;
+
+setupToggle("toggleTapPassword", tapPassword);
+
+function setRfidStatus(text, color) {
+  if (!rfidStatusEl) return;
+  rfidStatusEl.textContent = text;
+  rfidStatusEl.style.color = color;
+}
+
+// juan.delacruz@gmail.com -> ju********@gmail.com
+function maskEmail(email) {
+  const [name, domain] = String(email || "").split("@");
+  if (!domain) return "";
+  return `${name.slice(0, 2)}${"*".repeat(Math.max(3, name.length - 2))}@${domain}`;
+}
+
+function openTapModal(record, cardUid) {
+  tapRecord = record;
+  tapCardUid = cardUid;
+  tapAttempts = 0;
+
+  document.getElementById("tapName").textContent = record.name || "Card holder";
+  document.getElementById("tapEmail").textContent = maskEmail(record.email);
+  document.getElementById("tapRole").textContent = record.role === "employee" ? "Employee" : "Student";
+
+  // Lets password managers fill the right account
+  tapUsername.value = record.email || "";
+
+  tapPassword.value = "";
+  tapPassword.type = "password";
+  tapError.textContent = "";
+  tapPassword.closest(".input-wrapper")?.classList.remove("has-error");
+  tapSubmit.disabled = false;
+
+  tapModal.hidden = false;
+  setTimeout(() => tapPassword.focus(), 50);
+}
+
+function closeTapModal(message) {
+  tapModal.hidden = true;
+  tapRecord = null;
+  tapPassword.value = "";
+
+  setRfidStatus(message || "Tap your RFID card on the reader", message ? "#ef4444" : "");
+  if (rfidUIDEl) rfidUIDEl.textContent = "Waiting...";
+}
+
+document.getElementById("tapCancel").addEventListener("click", () => closeTapModal());
+
+document.getElementById("tapNotMe").addEventListener("click", () => {
+  closeTapModal();
+  emailField.focus();
+});
+
+tapModal.addEventListener("click", (event) => {
+  if (event.target === tapModal) closeTapModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !tapModal.hidden) closeTapModal();
+});
+
+tapPassword.addEventListener("input", () => {
+  tapError.textContent = "";
+  tapPassword.closest(".input-wrapper")?.classList.remove("has-error");
+});
+
+tapForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const record = tapRecord;
+  const password = tapPassword.value;
+
+  if (!record) return;
+
+  if (!password) {
+    tapError.textContent = "Enter your password to confirm it's you.";
+    tapPassword.closest(".input-wrapper")?.classList.add("has-error");
+    return;
+  }
+
+  tapSubmit.disabled = true;
+
+  try {
+    const cred = await signInWithEmailAndPassword(auth, record.email, password);
+
+    // The card must point at the account that just signed in
+    if (record.uid && record.uid !== cred.user.uid) {
+      await signOut(auth);
+      closeTapModal("This card is linked to a different account. Please contact the clinic.");
+      return;
+    }
+
+    const role = record.role === "employee" ? "employee" : "student";
+    const problem = await checkRole(cred.user, role);
+
+    if (problem) {
+      closeTapModal(problem);
+      return;
+    }
+
+    // Older registrations stored the password with the card: remove it
+    if (record.authKey !== undefined) {
+      await update(ref(db, `rfid_lookup/${tapCardUid}`), { authKey: null })
+        .catch((err) => console.warn("Could not remove the old saved password:", err));
+    }
+
+    tapModal.hidden = true;
+    setRfidStatus(`Welcome, ${record.name || "back"}! Logging you in...`, "#10b981");
+
+    setTimeout(() => {
+      window.location.href = DESTINATIONS[role];
+    }, 600);
+
+  } catch (err) {
+    console.error("Card login error:", err);
+    tapAttempts++;
+    tapSubmit.disabled = false;
+
+    if (err.code === "auth/too-many-requests" || tapAttempts >= MAX_TAP_ATTEMPTS) {
+      closeTapModal("Too many attempts. Please log in with your email and password.");
+      return;
+    }
+
+    if (err.code === "auth/network-request-failed") {
+      tapError.textContent = "Network error. Check your connection.";
+      return;
+    }
+
+    if (err.code === "auth/unauthorized-domain") {
+      tapError.textContent = "This website isn't an authorized domain in Firebase Authentication settings.";
+      return;
+    }
+
+    tapError.textContent = `Incorrect password. ${MAX_TAP_ATTEMPTS - tapAttempts} attempt${MAX_TAP_ATTEMPTS - tapAttempts === 1 ? "" : "s"} left.`;
+    tapPassword.closest(".input-wrapper")?.classList.add("has-error");
+    tapPassword.select();
+  }
+});
+
 async function processRfidCard(cardUid) {
   const cleanUid = String(cardUid).trim().replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  console.log("Processing RFID Card:", cleanUid);
+  if (!cleanUid) return;
 
   if (rfidUIDEl) rfidUIDEl.textContent = cleanUid;
-  if (rfidStatusEl) {
-    rfidStatusEl.textContent = `Verifying card ${cleanUid}...`;
-    rfidStatusEl.style.color = "#ffd41d";
-  }
+  setRfidStatus(`Checking card ${cleanUid}...`, "#ffd41d");
 
   try {
     const lookupSnap = await get(ref(db, `rfid_lookup/${cleanUid}`));
 
     if (!lookupSnap.exists()) {
-      if (rfidStatusEl) {
-        rfidStatusEl.textContent = `Card ${cleanUid} not registered.`;
-        rfidStatusEl.style.color = "#ef4444";
-      }
+      setRfidStatus(`Card ${cleanUid} is not registered.`, "#ef4444");
       alert(`Card ${cleanUid} is not registered yet.\n\nPlease register your account first and scan this card during registration.`);
       return;
     }
 
     const record = lookupSnap.val();
-    console.log("Matched RFID user record:", record);
 
-    if (rfidStatusEl) {
-      rfidStatusEl.textContent = `Card verified! Logging in as ${record.name || record.email}...`;
-      rfidStatusEl.style.color = "#10b981";
+    if (!record.email) {
+      setRfidStatus("This card has no account linked. Please contact the clinic.", "#ef4444");
+      return;
     }
 
-    // Automatically set the role on form
-    if (roleField && record.role) {
-      roleField.value = record.role;
-      clearError(roleField, roleError);
-    }
-    // Auto fill the email
-    if (emailField && record.email) {
-      emailField.value = record.email;
-      clearError(emailField, emailError);
-    }
+    setRfidStatus("Card recognized. Enter your password to continue.", "#10b981");
+    openTapModal(record, cleanUid);
 
-    // If an authentication passKey or password was saved during card registration:
-    if (record.email && record.authKey) {
-      const userCred = await signInWithEmailAndPassword(auth, record.email, record.authKey);
-      console.log("RFID Login successful:", userCred.user.uid);
-
-      const destinations = {
-        student: "../dashboard/dashboard.html",
-        employee: "../dashboard/dashboard.html",
-        admin: "../admin/admin.html"
-      };
-
-      setTimeout(() => {
-        window.location.href = destinations[record.role] || "../dashboard/dashboard.html";
-      }, 700);
-    } else {
-      // If no password stored, focus password field so user can enter password
-      if (passwordField) {
-        passwordField.focus();
-        if (rfidStatusEl) {
-          rfidStatusEl.textContent = `Welcome ${record.name || record.email}! Enter your password to continue.`;
-          rfidStatusEl.style.color = "#ffd41d";
-        }
-      }
-    }
   } catch (err) {
-    console.error("RFID login error:", err);
-    if (rfidStatusEl) {
-      rfidStatusEl.textContent = "RFID Login: " + (err.message || "Failed to authenticate");
-      rfidStatusEl.style.color = "#ef4444";
-    }
-    if (err.code === "auth/unauthorized-domain") {
-      alert("Firebase Error: oogwayhsha.github.io is not an authorized domain.\n\nPlease add oogwayhsha.github.io in Firebase Console > Authentication > Settings > Authorized Domains.");
-    } else {
-      alert("Login Error: " + err.message);
-    }
+    console.error("RFID lookup error:", err);
+    setRfidStatus("RFID Login: " + (err.message || "Couldn't check the card"), "#ef4444");
   }
 }
 
@@ -303,14 +449,11 @@ async function activateNfcLogin() {
       scanNfcLoginBtn.style.color = "#ffffff";
     }
 
-    if (rfidStatusEl) {
-      rfidStatusEl.textContent = "Hold your student/employee ID against the back of this phone...";
-      rfidStatusEl.style.color = "#10b981";
-    }
+    setRfidStatus("Hold your student/employee ID against the back of this phone...", "#10b981");
 
     ndef.onreading = (event) => {
       const rawSerial = event.serialNumber;
-      if (!rawSerial) return;
+      if (!rawSerial || !tapModal.hidden) return;
       const cleanUid = rawSerial.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
@@ -322,10 +465,7 @@ async function activateNfcLogin() {
     };
 
     ndef.onreadingerror = () => {
-      if (rfidStatusEl) {
-        rfidStatusEl.textContent = "Could not read card. Hold it steady against back of phone.";
-        rfidStatusEl.style.color = "#ef4444";
-      }
+      setRfidStatus("Could not read card. Hold it steady against back of phone.", "#ef4444");
     };
   } catch (err) {
     console.error("Direct NFC scan activation error:", err);
@@ -352,8 +492,8 @@ onValue(ref(db, "rfid_tap"), async (snapshot) => {
   const tap = snapshot.val();
   if (!tap || !tap.cardUid || !tap.timestamp) return;
 
-  // Ignore tap if already handled or older than 25 seconds
-  if (tap.timestamp <= lastHandledTapTime || Date.now() - tap.timestamp > 25000) {
+  // Ignore tap if already handled, older than 25 seconds, or a password prompt is open
+  if (tap.timestamp <= lastHandledTapTime || Date.now() - tap.timestamp > 25000 || !tapModal.hidden) {
     return;
   }
   lastHandledTapTime = tap.timestamp;

@@ -14,6 +14,9 @@ import {
     equalTo
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
+import { medicalHistoryHtml } from "../shared/clinic.js";
+import { mountBell } from "../shared/notify.js";
+
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -157,6 +160,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
+       MEDICAL HISTORY (saved from the booking form)
+    ========================================= */
+
+    async function loadMedicalHistory(uid) {
+
+        try {
+            const snapshot = await get(ref(db, `medicalHistory/${uid}`));
+            $("medicalHistory").innerHTML = snapshot.exists()
+                ? medicalHistoryHtml(snapshot.val())
+                : '<p class="history-empty">Nothing saved yet. You can add it when you book an appointment.</p>';
+        } catch (error) {
+            console.warn("Could not load medical history:", error);
+            $("medicalHistory").innerHTML = '<p class="history-empty">Couldn\'t load your medical history.</p>';
+        }
+    }
+
+
+    /* =========================================
        PREFERENCES
     ========================================= */
 
@@ -223,7 +244,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             renderProfile(data, user);
             applyPreferences(data.preferences);
-            await loadAppointmentStats(user.uid, data);
+            mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")]);
+            await Promise.all([
+                loadAppointmentStats(user.uid, data),
+                loadMedicalHistory(user.uid)
+            ]);
 
         } catch (error) {
 

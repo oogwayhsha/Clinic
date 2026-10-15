@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Clinic Staff Dashboard | University Clinic</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Shared theme first, then the admin + staff additions -->
+    <link rel="stylesheet" href="../appointment/appointments.css">
+    <link rel="stylesheet" href="../admin/admin.css">
+    <link rel="stylesheet" href="../shared/notify.css">
+    <link rel="stylesheet" href="staff.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+        <a href="staff.html" class="brand" aria-label="Clinic staff dashboard">
+            <img src="nufvlogo.png" alt="University Logo">
+
+            <div>
+                <h1>University Clinic</h1>
+                <span>Clinic Staff Portal</span>
+            </div>
+        </a>
+
+
+        <nav class="desktop-nav">
+
+            <a href="staff.html" class="active">Dashboard</a>
+
+            <div class="bell-slot" id="bellSlotDesktop"></div>
+
+            <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
+
+        </nav>
+
+
+        <!-- Mobile header buttons -->
+        <div class="mobile-header-btns">
+
+            <div class="bell-slot" id="bellSlotMobile"></div>
+
+            <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="page-container">
+
+        <!-- Shown until the account is confirmed as clinic staff -->
+        <div class="empty-state access-check" id="accessCheck">
+            <p>Checking your access...</p>
+        </div>
+
+
+        <div id="staffContent" hidden>
+
+            <!-- PAGE HEADER -->
+            <section class="page-header">
+
+                <div>
+                    <span class="page-label" id="roleLabel">CLINIC STAFF</span>
+                    <h2 id="greeting">Dashboard</h2>
+                    <p>Review appointment requests, see who's confirmed they're coming, and keep your hours up to date.</p>
+                </div>
+
+                <div class="live-pill" id="livePill">
+                    <span></span> Live
+                </div>
+
+            </section>
+
+
+            <!-- STATS -->
+            <section class="stats-grid" aria-label="Overview">
+
+                <button type="button" class="stat-card stat-link" data-go="requests">
+                    <span class="stat-label">Requests</span>
+                    <strong id="statRequests">0</strong>
+                    <small>waiting for your approval</small>
+                </button>
+
+                <button type="button" class="stat-card stat-link" data-go="schedule">
+                    <span class="stat-label">Today</span>
+                    <strong id="statToday">0</strong>
+                    <small>approved visits</small>
+                </button>
+
+                <button type="button" class="stat-card stat-link" data-go="schedule">
+                    <span class="stat-label">Awaiting reply</span>
+                    <strong id="statAwaiting">0</strong>
+                    <small>asked to confirm</small>
+                </button>
+
+                <button type="button" class="stat-card stat-link" data-go="schedule">
+                    <span class="stat-label">Confirmed</span>
+                    <strong id="statAttending">0</strong>
+                    <small>patients coming</small>
+                </button>
+
+            </section>
+
+
+            <!-- TABS -->
+            <div class="tabs staff-tabs" role="tablist" aria-label="Dashboard sections">
+                <button type="button" class="tab active" data-tab="requests" role="tab" aria-selected="true">
+                    Requests <span class="tab-count" id="requestCount" hidden>0</span>
+                </button>
+                <button type="button" class="tab" data-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+                <button type="button" class="tab" data-tab="history" role="tab" aria-selected="false">Patient History</button>
+                <button type="button" class="tab" data-tab="availability" role="tab" aria-selected="false">My Availability</button>
+                <button type="button" class="tab" data-tab="profile" role="tab" aria-selected="false">My Profile</button>
+            </div>
+
+
+            <!-- ===================== REQUESTS ===================== -->
+            <section class="tab-panel" id="panel-requests" role="tabpanel">
+                <div id="requestList" aria-live="polite">
+                    <div class="empty-state"><p>Loading requests...</p></div>
+                </div>
+            </section>
+
+
+            <!-- ===================== SCHEDULE ===================== -->
+            <section class="tab-panel" id="panel-schedule" role="tabpanel" hidden>
+
+                <div class="card toolbar slim">
+                    <div class="filters" id="scheduleFilters" role="group" aria-label="Schedule range">
+                        <button type="button" class="filter active" data-range="upcoming">Upcoming</button>
+                        <button type="button" class="filter" data-range="today">Today</button>
+                        <button type="button" class="filter" data-range="week">Next 7 days</button>
+                    </div>
+
+                    <label class="check-row">
+                        <input type="checkbox" id="showCancelled" checked>
+                        <span>Show cancellations</span>
+                    </label>
+                </div>
+
+                <div class="legend">
+                    <span><i class="dot attending"></i> Confirmed coming</span>
+                    <span><i class="dot awaiting"></i> Asked, no reply yet</span>
+                    <span><i class="dot approved"></i> Not asked yet</span>
+                    <span><i class="dot cancelled"></i> Cancelled</span>
+                </div>
+
+                <div id="scheduleList" aria-live="polite"></div>
+
+            </section>
+
+
+            <!-- ===================== HISTORY ===================== -->
+            <section class="tab-panel" id="panel-history" role="tabpanel" hidden>
+
+                <div class="card toolbar">
+                    <div class="toolbar-fields history-fields-bar">
+
+                        <div class="form-group search">
+                            <label for="historySearch">Search</label>
+                            <input type="search" id="historySearch" placeholder="Patient name, ID or service">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="historyStatus">Outcome</label>
+                            <select id="historyStatus">
+                                <option value="all">All past visits</option>
+                                <option value="completed">Completed</option>
+                                <option value="missed">No-show</option>
+                                <option value="cancelled">Cancelled</option>
+                                <option value="declined">Declined</option>
+                            </select>
+                        </div>
+
+                    </div>
+                </div>
+
+                <p class="result-count" id="historyCount"></p>
+
+                <div id="historyList"></div>
+
+            </section>
+
+
+            <!-- ===================== AVAILABILITY ===================== -->
+            <section class="tab-panel" id="panel-availability" role="tabpanel" hidden>
+
+                <div class="availability-layout">
+
+                    <section class="card">
+                        <div class="card-header split">
+                            <div>
+                                <span class="section-label">WEEKLY HOURS</span>
+                                <h3>When patients can book you</h3>
+                                <p>Patients only see times when you're on duty and the service is open. Leave the break empty if you don't take one.</p>
+                            </div>
+                        </div>
+
+                        <div class="week-editor" id="weekEditor"></div>
+
+                        <div class="editor-actions">
+                            <span class="save-state" id="hoursState"></span>
+                            <button type="button" class="btn-primary" id="saveHoursBtn">Save weekly hours</button>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">TIME OFF</span>
+                            <h3>Days off</h3>
+                            <p>Patients can't book you on these dates.</p>
+                        </div>
+
+                        <div class="dayoff-form">
+                            <div class="form-group">
+                                <label for="dayOffDate">Date</label>
+                                <input type="date" id="dayOffDate">
+                            </div>
+                            <div class="form-group">
+                                <label for="dayOffNote">Reason (optional)</label>
+                                <input type="text" id="dayOffNote" maxlength="60" placeholder="e.g. Seminar">
+                            </div>
+                            <button type="button" class="btn-secondary" id="addDayOffBtn">Add day off</button>
+                        </div>
+
+                        <p class="dayoff-warning" id="dayOffWarning" hidden></p>
+
+                        <ul class="dayoff-list" id="dayOffList"></ul>
+
+                        <div class="services-box">
+                            <span class="section-label">SERVICES YOU HANDLE</span>
+                            <div id="myServices"></div>
+                            <small>Ask the clinic admin to change these.</small>
+                        </div>
+                    </section>
+
+                </div>
+
+            </section>
+
+
+            <!-- ===================== MY PROFILE ===================== -->
+            <section class="tab-panel" id="panel-profile" role="tabpanel" hidden>
+
+                <div class="availability-layout">
+
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">PROFILE</span>
+                            <h3>How patients see you</h3>
+                            <p>Your name, specialization and bio appear when patients choose a provider.</p>
+                        </div>
+
+                        <div class="profile-preview" id="profilePreview"></div>
+
+                        <div class="form-group">
+                            <label for="profName">Full name</label>
+                            <input type="text" id="profName" maxlength="60" placeholder="e.g. Maria Santos">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="profSpecialty">Specialization (optional)</label>
+                            <input type="text" id="profSpecialty" maxlength="60" placeholder="e.g. General Physician, Pediatrics">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="profPhone">Contact number (optional, clinic staff only)</label>
+                            <input type="tel" id="profPhone" maxlength="20" placeholder="e.g. 0917 123 4567">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="profBio">Short bio (optional)</label>
+                            <textarea id="profBio" maxlength="200" placeholder="e.g. 10 years in family medicine. Happy to help with check-ups and follow-ups."></textarea>
+                            <span class="char-count" id="profBioCount">0 / 200</span>
+                        </div>
+
+                        <div class="editor-actions">
+                            <span class="save-state" id="profileState"></span>
+                            <button type="button" class="btn-primary" id="saveProfileBtn">Save profile</button>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">ACCOUNT</span>
+                            <h3>Login and role</h3>
+                        </div>
+
+                        <div class="record-grid single">
+                            <div class="record-item">
+                                <span>Login email</span>
+                                <strong id="profEmail"></strong>
+                            </div>
+                            <div class="record-item">
+                                <span>Role</span>
+                                <strong id="profRole"></strong>
+                            </div>
+                        </div>
+
+                        <p class="muted-text account-note">Your role, services and login email are managed by the clinic admin.</p>
+
+                        <button type="button" class="btn-secondary" id="passwordEmailBtn">Email me a password change link</button>
+                    </section>
+
+                </div>
+
+            </section>
+
+        </div>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer>
+        <p>© 2026 University Clinic. All rights reserved.</p>
+    </footer>
+
+
+    <!-- APPROVE / INSTRUCTIONS MODAL -->
+    <div class="modal" id="approveModal" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
+        <div class="modal-content wide">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label" id="approveLabel">APPROVE REQUEST</span>
+                    <h3 id="approveTitle">Approve this appointment?</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="approveDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="instructionsInput">Pre-appointment instructions <small>(optional, sent to the patient)</small></label>
+                <div class="chip-row" id="instructionChips"></div>
+                <textarea id="instructionsInput" maxlength="600" placeholder="e.g. Please fast for 8 hours before your visit. Water is okay."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Back</button>
+                <button type="button" class="success-btn" id="approveConfirm">Approve and notify patient</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- DECLINE MODAL -->
+    <div class="modal" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="declineTitle">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">REQUEST</span>
+                    <h3 id="declineTitle">Can't take this one?</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="declineDetail"></p>
+
+            <label class="check-row pass-row" id="passRow">
+                <input type="checkbox" id="passOnInput" checked>
+                <span>Pass it to another available provider if someone is free</span>
+            </label>
+
+            <p class="modal-text small" id="passNote" hidden></p>
+
+            <div class="form-group modal-field">
+                <label for="declineReason">Note <small>(the patient sees this if the request is declined)</small></label>
+                <textarea id="declineReason" maxlength="200" placeholder="e.g. I'm unavailable that morning. Please book another time."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Back</button>
+                <button type="button" class="danger-btn" id="declineConfirm">Decline</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- COMPLETE MODAL -->
+    <div class="modal" id="completeModal" role="dialog" aria-modal="true" aria-labelledby="completeTitle">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">VISIT</span>
+                    <h3 id="completeTitle">Mark as completed</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="completeDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="visitNotesInput">Visit notes <small>(only clinic staff can see these)</small></label>
+                <textarea id="visitNotesInput" maxlength="1500" placeholder="Findings, treatment given, medicines, follow-up..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Back</button>
+                <button type="button" class="success-btn" id="completeConfirm">Mark completed</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- CANCEL MODAL -->
+    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">APPOINTMENT</span>
+                    <h3 id="cancelTitle">Cancel this appointment?</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="cancelDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="cancelNote">Note for the patient (optional)</label>
+                <textarea id="cancelNote" maxlength="200" placeholder="e.g. I'm called away that day. Please rebook."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Keep appointment</button>
+                <button type="button" class="danger-btn" id="cancelConfirm">Yes, cancel it</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- PATIENT RECORD MODAL -->
+    <div class="modal" id="patientModal" role="dialog" aria-modal="true" aria-labelledby="patientTitle">
+        <div class="modal-content record">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">PATIENT RECORD</span>
+                    <h3 id="patientTitle">Patient</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <div id="patientBody"><p class="modal-text">Loading...</p></div>
+
+        </div>
+    </div>
+
+
+    <!-- TOASTS -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+
+    <script type="module" src="staff.js"></script>
+
+</body>
+</html>

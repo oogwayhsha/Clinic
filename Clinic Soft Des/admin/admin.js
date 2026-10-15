@@ -1,62 +1,62 @@
 // ==========================================
-// ADMIN: oversee all student and employee appointments
-// (with approval emails via EmailJS + appointment history)
+// ADMIN: oversee all appointments + manage the clinic staff
 // ==========================================
-import { auth, db } from "../firebase/firebase.js";
+import { app, auth, db } from "../firebase/firebase.js";
+
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 
 import {
     onAuthStateChanged,
-    signOut
+    signOut,
+    initializeAuth,
+    inMemoryPersistence,
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
 import {
     ref,
     get,
-    push,
+    set,
     update,
+    onValue,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
+import { ADMIN_UID, SWEEP_MS } from "../shared/config.js";
+
+import {
+    SERVICES,
+    STAFF_TYPES,
+    DEFAULT_AVAILABILITY,
+    toDateKey,
+    parseDateKey,
+    formatTime,
+    endTime,
+    formatDateLong,
+    escapeHtml,
+    describeDays,
+    rangesFor,
+    staffDisplayName,
+    staffTypeLabel,
+    statusOf,
+    stateOf,
+    stateLabel,
+    STATE_INFO,
+    startOf,
+    historyTimelineHtml
+} from "../shared/clinic.js";
+
+import {
+    approveAppointment,
+    cancelAppointment,
+    completeAppointment,
+    markMissed,
+    sweepAppointments
+} from "../shared/actions.js";
+
 
 document.addEventListener("DOMContentLoaded", () => {
-
-    /* =========================================
-       SETTINGS (keep in sync with appointments.js)
-    ========================================= */
-
-    const SLOT_MINUTES = 30;
-    const REFRESH_MS = 60000;   // quiet auto-refresh so new bookings appear
-
-    const SERVICES = {
-        consultation: "Medical Consultation",
-        dental: "Dental Services",
-        certificate: "Medical Certificate"
-    };
-
-    // The hard-coded admin account (Firebase Console > Authentication > User UID)
-    const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
-
-    // EmailJS (https://www.emailjs.com): fill these in from your EmailJS dashboard.
-    //   SERVICE_ID  = Email Services > your Gmail service
-    //   TEMPLATE_ID = Email Templates > your "appointment confirmed" template
-    //   PUBLIC_KEY  = Account > General > Public Key
-    // While they still say "YOUR_...", the page works normally but sends no email.
-    const EMAILJS = {
-        SERVICE_ID: "YOUR_SERVICE_ID",
-        TEMPLATE_ID: "YOUR_TEMPLATE_ID",
-        PUBLIC_KEY: "YOUR_PUBLIC_KEY"
-    };
-
-    const CLINIC_NAME = "School Clinic";
-
-    const HISTORY_LABEL = {
-        booked:    "Appointment booked",
-        confirmed: "Approved by the clinic",
-        cancelled: "Cancelled",
-        completed: "Completed",
-        missed:    "Marked as missed"
-    };
-
 
     /* =========================================
        HELPERS
@@ -64,54 +64,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const $ = (id) => document.getElementById(id);
 
-    const pad = (n) => String(n).padStart(2, "0");
-
-    const toDateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-    function parseDateKey(key) {
-        const [y, m, d] = key.split("-").map(Number);
-        return new Date(y, m - 1, d);
-    }
-
-    function toMinutes(time) {
-        const [h, m] = time.split(":").map(Number);
-        return h * 60 + m;
-    }
-
-    const toTime = (minutes) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
-
-    function formatTime(time) {
-        const [h, m] = time.split(":").map(Number);
-        return `${h % 12 || 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}`;
-    }
-
-    const slotKey = (time) => time.replace(":", "");
-
-    function slotDate(dateKey, time) {
-        const [h, m] = time.split(":").map(Number);
-        const when = parseDateKey(dateKey);
-        when.setHours(h, m, 0, 0);
-        return when;
-    }
-
-    const formatDateLong = (key) =>
-        parseDateKey(key).toLocaleDateString("en-US", {
-            weekday: "long", month: "long", day: "numeric", year: "numeric"
-        });
-
-    function escapeHtml(value) {
-        return String(value ?? "").replace(/[&<>"']/g, (c) => ({
-            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-        }[c]));
-    }
-
     function toast(message, type = "info") {
         const el = document.createElement("div");
         el.className = `toast ${type}`;
         el.textContent = message;
         $("toasts").appendChild(el);
 
-        setTimeout(() => el.remove(), 4500);
+        setTimeout(() => el.remove(), 5000);
     }
 
     // Older or hand-made records may use different field names.
@@ -129,9 +88,16 @@ document.addEventListener("DOMContentLoaded", () => {
             ? [p.program, p.yearLevel].filter(Boolean).join(" · ")
             : (p.department || "");
     };
-    const statusOf = (a) => String(a.status || "pending").toLowerCase();
-    const whenOf = (a) => (a.date && a.time ? slotDate(a.date, a.time) : new Date(0));
-    const serviceName = (a) => SERVICES[a.service] || a.serviceName || "Appointment";
+    const providerName = (a) => a.staffName || (a.staffId && staff[a.staffId] ? staffDisplayName(staff[a.staffId]) : "Unassigned");
+    const whenOf = (a) => startOf(a);
+    const serviceName = (a) => SERVICES[a.service]?.name || a.serviceName || "Appointment";
+
+    // Filters use the stored status (pending / approved / ...),
+    // badges show the live state (e.g. "Needs confirmation")
+    const badge = (a) => {
+        const state = stateOf(a);
+        return `<span class="badge ${STATE_INFO[state]?.cls || "pending"}">${escapeHtml(stateLabel(a, state))}</span>`;
+    };
 
 
     /* =========================================
@@ -143,112 +109,95 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let all = [];
     let profiles = {};         // uid -> student / employee record
+    let staff = {};            // uid -> clinic staff record
     let loaded = false;
     let busy = false;          // an action is being saved
 
-    // CHANGED: range now starts on "all" so every appointment is shown
-    const filters = { range: "all", status: "all", service: "all", role: "all", search: "" };
+    const filters = { range: "all", status: "all", service: "all", role: "all", provider: "all", search: "" };
 
     let pendingCancel = null;
+    let editingStaffId = null;
 
-
-    /* =========================================
-       HISTORY
-       Every change is recorded under
-       appointments/{id}/history/{pushId}
-    ========================================= */
-
-    function historyEntry(status, note = "") {
-        return {
-            action: status,              // confirmed | completed | missed | cancelled
-            status,
-            by: adminUser ? adminUser.uid : "",
-            byRole: "admin",
-            byName: adminName,
-            at: serverTimestamp(),
-            note
-        };
-    }
-
-    function historyTimeline(a) {
-
-        const items = Object.values(a.history || {})
-            .sort((x, y) => (Number(x.at) || 0) - (Number(y.at) || 0));
-
-        if (!items.length) return "";
-
-        return `
-            <ul class="history-list">
-                ${items.map((h) => `
-                    <li class="history-item ${escapeHtml(h.status || "")}">
-                        <strong>${escapeHtml(HISTORY_LABEL[h.action] || h.action || "Updated")}</strong>
-                        ${h.byRole === "admin" && h.byName ? `<span>by ${escapeHtml(h.byName)}</span>` : ""}
-                        <span>${h.at ? new Date(Number(h.at)).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : ""}</span>
-                        ${h.note ? `<em>${escapeHtml(h.note)}</em>` : ""}
-                    </li>
-                `).join("")}
-            </ul>
-        `;
-    }
+    const actor = () => ({ uid: adminUser.uid, name: adminName, role: "admin" });
 
 
     /* =========================================
        LOAD
+       Appointments + staff are live; patient profiles are read once.
     ========================================= */
 
-    async function loadAppointments(quiet = false) {
+    async function loadProfiles() {
 
-        if (!adminUser) return;
+        const [studentSnap, employeeSnap] = await Promise.all([
+            get(ref(db, "students")),
+            get(ref(db, "employees"))
+        ]);
 
-        try {
+        profiles = {};
 
-            const [apptSnap, studentSnap, employeeSnap] = await Promise.all([
-                get(ref(db, "appointments")),
-                get(ref(db, "students")),
-                get(ref(db, "employees"))
-            ]);
+        Object.entries(studentSnap.val() || {}).forEach(([uid, p]) => {
+            profiles[uid] = { ...p, role: "student" };
+        });
 
-            profiles = {};
+        Object.entries(employeeSnap.val() || {}).forEach(([uid, p]) => {
+            profiles[uid] = { ...p, role: "employee" };
+        });
+    }
 
-            Object.entries(studentSnap.exists() ? studentSnap.val() : {}).forEach(([uid, p]) => {
-                profiles[uid] = { ...p, role: "student" };
-            });
+    function showLoadError() {
+        $("appointmentList").innerHTML = `
+            <div class="empty-state">
+                <h4>We couldn't load the appointments</h4>
+                <p>Check your connection and that the latest database rules are published, then reload.</p>
+            </div>
+        `;
+        $("resultCount").textContent = "";
+    }
 
-            Object.entries(employeeSnap.exists() ? employeeSnap.val() : {}).forEach(([uid, p]) => {
-                profiles[uid] = { ...p, role: "employee" };
-            });
+    function watchData() {
 
-            all = apptSnap.exists()
-                ? Object.entries(apptSnap.val()).map(([id, value]) => ({ id, ...value }))
-                : [];
-
+        onValue(ref(db, "appointments"), (snapshot) => {
+            all = Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value }));
             loaded = true;
-
-        } catch (error) {
-
+            render();
+        }, (error) => {
             console.error("Failed to load appointments:", error);
+            showLoadError();
+        });
 
-            if (!quiet || !loaded) {
-                $("appointmentList").innerHTML = `
-                    <div class="empty-state">
-                        <h4>We couldn't load the appointments</h4>
-                        <p>Check your connection and permissions, then try again.</p>
-                        <button type="button" class="btn-primary" id="retryBtn">Try again</button>
-                    </div>
-                `;
-                $("resultCount").textContent = "";
-            }
-
-            return;
-        }
-
-        render();
+        onValue(ref(db, "staff"), (snapshot) => {
+            staff = snapshot.val() || {};
+            fillProviderFilters();
+            renderStaff();
+            if (loaded) render();
+        }, (error) => console.error("Failed to load staff:", error));
     }
 
 
     /* =========================================
        FILTER + RENDER
     ========================================= */
+
+    function fillProviderFilters() {
+
+        const options = Object.entries(staff)
+            .sort(([, a], [, b]) => staffDisplayName(a).localeCompare(staffDisplayName(b)))
+            .map(([id, s]) => `<option value="${escapeHtml(id)}">${escapeHtml(staffDisplayName(s))}</option>`)
+            .join("");
+
+        ["providerFilter", "weekProviderFilter"].forEach((id) => {
+            const select = $(id);
+            const current = select.value;
+            select.innerHTML = `<option value="all">All providers</option><option value="none">Unassigned</option>${options}`;
+            select.value = [...select.options].some((o) => o.value === current) ? current : "all";
+        });
+    }
+
+    const matchesProvider = (a, provider) =>
+        provider === "all" || (provider === "none" ? !a.staffId : a.staffId === provider);
+
+    const matchesSearch = (a, term) =>
+        !term || `${patientName(a)} ${patientId(a)} ${serviceName(a)} ${providerName(a)}`.toLowerCase().includes(term);
 
     function filtered() {
 
@@ -266,13 +215,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (filters.status !== "all" && statusOf(a) !== filters.status) return false;
             if (filters.service !== "all" && a.service !== filters.service) return false;
             if (filters.role !== "all" && patientRole(a) !== filters.role) return false;
+            if (!matchesProvider(a, filters.provider)) return false;
 
-            if (term) {
-                const haystack = `${patientName(a)} ${patientId(a)} ${serviceName(a)}`.toLowerCase();
-                if (!haystack.includes(term)) return false;
-            }
-
-            return true;
+            return matchesSearch(a, term);
         });
     }
 
@@ -290,19 +235,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const today = toDateKey(new Date());
 
-        $("statToday").textContent = all.filter((a) => a.date === today && statusOf(a) !== "cancelled").length;
-        $("statPending").textContent = all.filter((a) => statusOf(a) === "pending" && (a.date || "") >= today).length;
-        $("statConfirmed").textContent = all.filter((a) => statusOf(a) === "confirmed" && (a.date || "") >= today).length;
+        $("statToday").textContent = all.filter((a) => a.date === today && !["cancelled", "declined"].includes(statusOf(a))).length;
+        $("statPending").textContent = all.filter((a) => stateOf(a) === "pending").length;
+        $("statConfirmed").textContent = all.filter((a) => statusOf(a) === "approved" && (a.date || "") >= today).length;
         $("statCompleted").textContent = all.filter((a) => statusOf(a) === "completed").length;
     }
-
-    const BADGES = {
-        pending: "Pending",
-        confirmed: "Confirmed",
-        completed: "Completed",
-        missed: "Missed",
-        cancelled: "Cancelled"
-    };
 
     // Which buttons make sense for this appointment right now
     function actionsFor(a) {
@@ -313,12 +250,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const todayOrEarlier = (a.date || "") <= toDateKey(now);
 
         if (status === "pending") {
-            return started
-                ? ["missed", "cancel"]
-                : ["confirm", "cancel"];
+            return started ? ["cancel"] : ["approve", "cancel"];
         }
 
-        if (status === "confirmed") {
+        if (status === "approved") {
             const actions = [];
             if (todayOrEarlier) actions.push("complete");
             actions.push(started ? "missed" : "cancel");
@@ -329,26 +264,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const ACTION_BUTTONS = {
-        confirm:  '<button type="button" class="link-btn primary" data-action="confirm" data-id="__ID__">Confirm</button>',
+        approve:  '<button type="button" class="link-btn primary" data-action="approve" data-id="__ID__">Approve</button>',
         complete: '<button type="button" class="link-btn success" data-action="complete" data-id="__ID__">Mark completed</button>',
-        missed:   '<button type="button" class="link-btn" data-action="missed" data-id="__ID__">Mark missed</button>',
+        missed:   '<button type="button" class="link-btn" data-action="missed" data-id="__ID__">Mark no-show</button>',
         cancel:   '<button type="button" class="link-btn danger" data-action="cancel" data-id="__ID__">Cancel</button>'
     };
 
+    const buttonsFor = (a) => actionsFor(a)
+        .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
+        .join("");
+
     function card(a) {
 
-        const status = statusOf(a);
         const phone = patientPhone(a);
         const id = patientId(a);
         const role = patientRole(a);
         const email = patientEmail(a);
         const detail = patientDetail(a);
 
-        const end = a.time ? formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES)) : "";
-
-        const buttons = actionsFor(a)
-            .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
-            .join("");
+        const end = a.time ? formatTime(endTime(a.time)) : "";
+        const buttons = buttonsFor(a);
 
         return `
             <article class="appt-card">
@@ -369,15 +304,18 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : ""}
                     </div>
 
+                    <p class="appt-provider">with ${escapeHtml(providerName(a))}</p>
+
                     ${a.reason ? `<p class="appt-reason">${escapeHtml(a.reason)}</p>` : ""}
+                    ${a.instructions ? `<p class="appt-reason"><strong>Instructions:</strong> ${escapeHtml(a.instructions)}</p>` : ""}
                     ${a.clinicNote ? `<p class="appt-reason"><strong>Note sent:</strong> ${escapeHtml(a.clinicNote)}</p>` : ""}
-                    ${a.confirmationEmailSentAt ? `<p class="appt-handled">Confirmation email sent</p>` : ""}
+                    ${a.declineReason ? `<p class="appt-reason"><strong>Declined:</strong> ${escapeHtml(a.declineReason)}</p>` : ""}
                     ${a.handledByName ? `<p class="appt-handled">Last updated by ${escapeHtml(a.handledByName)}</p>` : ""}
-                    ${historyTimeline(a)}
+                    ${a.history ? `<details class="appt-history"><summary>Timeline</summary>${historyTimelineHtml(a)}</details>` : ""}
                 </div>
 
                 <div class="appt-side">
-                    <span class="badge ${status}">${BADGES[status] || escapeHtml(status)}</span>
+                    ${badge(a)}
                     ${buttons ? `<div class="appt-actions">${buttons}</div>` : ""}
                 </div>
             </article>
@@ -398,9 +336,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let currentWeekMonday = getMonday(new Date());
-    let currentViewMode = "weekly"; // "weekly" | "list"
+    let currentViewMode = "weekly"; // "weekly" | "list" | "staff"
     let weeklyDisplayMode = "table"; // "table" | "grid"
-    const weekFilters = { status: "all", service: "all", search: "" };
+    const weekFilters = { status: "all", service: "all", provider: "all", search: "" };
 
     function getWeekDays(monday) {
         const days = [];
@@ -450,13 +388,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (weekFilters.status !== "all" && statusOf(a) !== weekFilters.status) return false;
             if (weekFilters.service !== "all" && a.service !== weekFilters.service) return false;
+            if (!matchesProvider(a, weekFilters.provider)) return false;
 
-            if (term) {
-                const haystack = `${patientName(a)} ${patientId(a)} ${serviceName(a)}`.toLowerCase();
-                if (!haystack.includes(term)) return false;
-            }
-
-            return true;
+            return matchesSearch(a, term);
         }).sort((a, b) => whenOf(a) - whenOf(b));
     }
 
@@ -479,16 +413,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Stats summary for the selected week
         const allWeekList = all.filter((a) => weekDays.some((d) => d.dateKey === a.date));
-        const weekTotal = allWeekList.length;
-        const weekConfirmed = allWeekList.filter((a) => statusOf(a) === "confirmed").length;
-        const weekPending = allWeekList.filter((a) => statusOf(a) === "pending").length;
-        const weekCompleted = allWeekList.filter((a) => statusOf(a) === "completed").length;
+        const count = (status) => allWeekList.filter((a) => statusOf(a) === status).length;
 
         $("weekSummaryPills").innerHTML = `
-            <span class="summary-pill total">Total: <strong>${weekTotal}</strong></span>
-            <span class="summary-pill confirmed">Confirmed: <strong>${weekConfirmed}</strong></span>
-            <span class="summary-pill pending">Pending: <strong>${weekPending}</strong></span>
-            <span class="summary-pill completed">Completed: <strong>${weekCompleted}</strong></span>
+            <span class="summary-pill total">Total: <strong>${allWeekList.length}</strong></span>
+            <span class="summary-pill confirmed">Approved: <strong>${count("approved")}</strong></span>
+            <span class="summary-pill pending">Pending: <strong>${count("pending")}</strong></span>
+            <span class="summary-pill completed">Completed: <strong>${count("completed")}</strong></span>
         `;
 
         if (weeklyDisplayMode === "table") {
@@ -511,11 +442,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (jumpBtn) {
                 jumpBtn.addEventListener("click", () => {
                     currentWeekMonday = getMonday(new Date());
-                    weekFilters.status = "all";
-                    weekFilters.service = "all";
-                    weekFilters.search = "";
+                    Object.assign(weekFilters, { status: "all", service: "all", provider: "all", search: "" });
                     $("weekStatusFilter").value = "all";
                     $("weekServiceFilter").value = "all";
+                    $("weekProviderFilter").value = "all";
                     $("weekSearchInput").value = "";
                     renderWeeklySchedule();
                 });
@@ -526,7 +456,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const todayKey = toDateKey(new Date());
 
         const rowsHtml = weekList.map((a) => {
-            const status = statusOf(a);
             const phone = patientPhone(a);
             const id = patientId(a);
             const role = patientRole(a);
@@ -534,14 +463,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const detail = patientDetail(a);
             const isToday = a.date === todayKey;
 
-            const end = a.time ? formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES)) : "";
+            const end = a.time ? formatTime(endTime(a.time)) : "";
             const dayObj = weekDays.find((d) => d.dateKey === a.date);
             const dayLabel = dayObj ? dayObj.dayName : "Unknown";
             const dateLabel = dayObj ? dayObj.displayDate : (a.date || "");
 
-            const buttons = actionsFor(a)
-                .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
-                .join("");
+            const buttons = buttonsFor(a);
 
             return `
                 <tr class="${isToday ? "is-today" : ""}">
@@ -573,6 +500,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         </span>
                     </td>
                     <td>
+                        <span class="table-provider">${escapeHtml(providerName(a))}</span>
+                    </td>
+                    <td>
                         <div class="table-contact-links">
                             ${phone ? `<a href="tel:${escapeHtml(phone)}" title="Call">${escapeHtml(phone)}</a>` : ""}
                             ${email ? `<a href="mailto:${escapeHtml(email)}" title="Email">${escapeHtml(email)}</a>` : ""}
@@ -580,7 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                     </td>
                     <td>
-                        <span class="badge ${status}">${BADGES[status] || escapeHtml(status)}</span>
+                        ${badge(a)}
                     </td>
                     <td>
                         <div class="table-actions-cell">
@@ -602,6 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <th>Patient</th>
                                 <th>ID / Details</th>
                                 <th>Service</th>
+                                <th>Provider</th>
                                 <th>Contact</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -623,19 +554,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const cardsHtml = dayAppts.length === 0
                 ? `<div class="col-empty-msg">No appointments</div>`
                 : dayAppts.map((a) => {
-                    const status = statusOf(a);
                     const role = patientRole(a);
                     const id = patientId(a);
-                    const end = a.time ? formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES)) : "";
-                    const buttons = actionsFor(a)
-                        .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
-                        .join("");
+                    const end = a.time ? formatTime(endTime(a.time)) : "";
+                    const buttons = buttonsFor(a);
 
                     return `
                         <div class="day-grid-card">
                             <div class="grid-card-top">
                                 <span class="grid-card-time">${a.time ? formatTime(a.time) : "--"}${end ? ` until ${end}` : ""}</span>
-                                <span class="badge ${status}">${BADGES[status] || status}</span>
+                                ${badge(a)}
                             </div>
                             <div class="grid-card-patient">
                                 <h5>${escapeHtml(patientName(a))}</h5>
@@ -645,7 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 </div>
                             </div>
                             <div class="grid-card-service">
-                                ${escapeHtml(serviceName(a))}
+                                ${escapeHtml(serviceName(a))} · ${escapeHtml(providerName(a))}
                             </div>
                             ${buttons ? `<div class="grid-card-actions">${buttons}</div>` : ""}
                         </div>
@@ -728,6 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderStats();
         renderWeeklySchedule();
         renderList();
+        renderStaff();
     }
 
 
@@ -735,23 +664,27 @@ document.addEventListener("DOMContentLoaded", () => {
        FILTER & VIEW SWITCHER CONTROLS
     ========================================= */
 
-    // Main View Switcher
-    $("viewWeeklyScheduleBtn").addEventListener("click", () => {
-        currentViewMode = "weekly";
-        $("viewWeeklyScheduleBtn").classList.add("active");
-        $("viewListViewBtn").classList.remove("active");
-        $("weeklyScheduleSection").hidden = false;
-        $("listViewSection").hidden = true;
-        renderWeeklySchedule();
-    });
+    const VIEWS = {
+        weekly: { button: "viewWeeklyScheduleBtn", section: "weeklyScheduleSection" },
+        list: { button: "viewListViewBtn", section: "listViewSection" },
+        staff: { button: "viewStaffBtn", section: "staffSection" }
+    };
 
-    $("viewListViewBtn").addEventListener("click", () => {
-        currentViewMode = "list";
-        $("viewListViewBtn").classList.add("active");
-        $("viewWeeklyScheduleBtn").classList.remove("active");
-        $("weeklyScheduleSection").hidden = true;
-        $("listViewSection").hidden = false;
-        renderList();
+    function showView(name) {
+        currentViewMode = name;
+
+        Object.entries(VIEWS).forEach(([key, view]) => {
+            $(view.button).classList.toggle("active", key === name);
+            $(view.button).setAttribute("aria-selected", String(key === name));
+            $(view.section).hidden = key !== name;
+        });
+
+        $("exportBtn").hidden = name === "staff";
+        render();
+    }
+
+    Object.entries(VIEWS).forEach(([name, view]) => {
+        $(view.button).addEventListener("click", () => showView(name));
     });
 
     // Week Navigation
@@ -786,20 +719,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Week Quick Filters
-    $("weekStatusFilter").addEventListener("change", (e) => {
-        weekFilters.status = e.target.value;
-        renderWeeklySchedule();
-    });
-
-    $("weekServiceFilter").addEventListener("change", (e) => {
-        weekFilters.service = e.target.value;
-        renderWeeklySchedule();
-    });
-
-    $("weekSearchInput").addEventListener("input", (e) => {
-        weekFilters.search = e.target.value;
-        renderWeeklySchedule();
-    });
+    $("weekStatusFilter").addEventListener("change", (e) => { weekFilters.status = e.target.value; renderWeeklySchedule(); });
+    $("weekServiceFilter").addEventListener("change", (e) => { weekFilters.service = e.target.value; renderWeeklySchedule(); });
+    $("weekProviderFilter").addEventListener("change", (e) => { weekFilters.provider = e.target.value; renderWeeklySchedule(); });
+    $("weekSearchInput").addEventListener("input", (e) => { weekFilters.search = e.target.value; renderWeeklySchedule(); });
 
     // List view filters
     $("rangeFilters").addEventListener("click", (event) => {
@@ -819,146 +742,29 @@ document.addEventListener("DOMContentLoaded", () => {
     $("statusFilter").addEventListener("change", (e) => { filters.status = e.target.value; renderList(); });
     $("serviceFilter").addEventListener("change", (e) => { filters.service = e.target.value; renderList(); });
     $("roleFilter").addEventListener("change", (e) => { filters.role = e.target.value; renderList(); });
+    $("providerFilter").addEventListener("change", (e) => { filters.provider = e.target.value; renderList(); });
     $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
 
     $("refreshBtn").addEventListener("click", async () => {
-        await loadAppointments();
-        toast("Appointments refreshed.");
+        try {
+            await loadProfiles();
+            render();
+            toast("Patient details refreshed. Appointments update live.");
+        } catch (error) {
+            console.error("Refresh error:", error);
+            toast("Couldn't refresh patient details.", "error");
+        }
     });
 
 
     /* =========================================
-       APPROVAL EMAIL (EmailJS)
-       Template variables to use in your EmailJS template:
-       {{to_name}} {{to_email}} {{service}} {{date}} {{time}} {{note}} {{clinic_name}}
-       and set the template's "To email" field to {{to_email}}
+       ACTIONS: approve / complete / no-show / cancel
     ========================================= */
-
-    const emailConfigured = () =>
-        Object.values(EMAILJS).every((v) => v && !String(v).startsWith("YOUR_"));
-
-    async function sendConfirmationEmail(a) {
-
-        const to = patientEmail(a);
-
-        if (!to) return { sent: false, reason: "no-email" };
-        if (!emailConfigured()) return { sent: false, reason: "not-configured" };
-
-        const endTime = formatTime(toTime(toMinutes(a.time) + SLOT_MINUTES));
-
-        const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                service_id: EMAILJS.SERVICE_ID,
-                template_id: EMAILJS.TEMPLATE_ID,
-                user_id: EMAILJS.PUBLIC_KEY,
-                template_params: {
-                    to_email: to,
-                    to_name: patientName(a),
-                    service: serviceName(a),
-                    date: formatDateLong(a.date),
-                    time: `${formatTime(a.time)} – ${endTime}`,
-                    note: a.clinicNote || "",
-                    clinic_name: CLINIC_NAME
-                }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`EmailJS ${response.status}: ${await response.text()}`);
-        }
-
-        // Remember that it was sent (also shows up on the appointment card)
-        await update(ref(db), {
-            [`appointments/${a.id}/confirmationEmailSentAt`]: serverTimestamp()
-        });
-
-        return { sent: true, to };
-    }
-
-    async function notifyConfirmed(a) {
-
-        try {
-
-            const result = await sendConfirmationEmail(a);
-
-            if (result.sent) {
-                toast(`Confirmation email sent to ${result.to}.`, "success");
-                await loadAppointments(true);
-            } else if (result.reason === "no-email") {
-                toast("Confirmed, but this patient has no email on file, so no email was sent.", "error");
-            } else {
-                console.info("EmailJS is not configured yet: no email sent.");
-            }
-
-        } catch (error) {
-
-            console.error("Email error:", error);
-            toast("Confirmed, but the confirmation email could not be sent.", "error");
-        }
-    }
-
-
-    /* =========================================
-       ACTIONS: confirm / complete / missed / cancel
-    ========================================= */
-
-    async function setStatus(a, status, extra = {}, freeSlot = false) {
-
-        if (busy) return false;
-
-        busy = true;
-
-        try {
-
-            const historyKey = push(ref(db, `appointments/${a.id}/history`)).key;
-
-            const changes = {
-                [`appointments/${a.id}/status`]: status,
-                [`appointments/${a.id}/handledBy`]: adminUser.uid,
-                [`appointments/${a.id}/handledByName`]: adminName,
-                [`appointments/${a.id}/handledAt`]: serverTimestamp(),
-                // History: who changed it, to what, and when
-                [`appointments/${a.id}/history/${historyKey}`]: historyEntry(status, extra.clinicNote || "")
-            };
-
-            Object.entries(extra).forEach(([field, value]) => {
-                changes[`appointments/${a.id}/${field}`] = value;
-            });
-
-            // Cancelling releases the time so another patient can book it
-            if (freeSlot && a.service && a.date && a.time) {
-                changes[`slots/${a.date}/${a.service}/${slotKey(a.time)}`] = null;
-            }
-
-            await update(ref(db), changes);
-
-            await loadAppointments(true);
-
-            return true;
-
-        } catch (error) {
-
-            console.error("Update error:", error);
-            toast("That change couldn't be saved. Please try again.", "error");
-
-            return false;
-
-        } finally {
-
-            busy = false;
-        }
-    }
 
     async function handleAppointmentAction(event) {
-        if (event.target.closest("#retryBtn")) {
-            loadAppointments();
-            return;
-        }
 
         const button = event.target.closest("[data-action]");
-        if (!button) return;
+        if (!button || busy) return;
 
         const a = all.find((item) => item.id === button.dataset.id);
         if (!a) return;
@@ -970,24 +776,28 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        if (action === "missed" && !confirm(`Mark ${patientName(a)} as a no-show?`)) return;
+
         button.disabled = true;
+        busy = true;
 
-        const messages = {
-            confirm: ["confirmed", "Appointment confirmed."],
-            complete: ["completed", "Marked as completed."],
-            missed: ["missed", "Marked as missed."]
-        };
-
-        const [status, message] = messages[action];
-        const saved = await setStatus(a, status);
-
-        if (saved) {
-            toast(message, "success");
-
-            // Approved: email the patient
-            if (status === "confirmed") await notifyConfirmed(a);
-        } else {
+        try {
+            if (action === "approve") {
+                await approveAppointment(a, actor());
+                toast("Approved. The patient was notified.", "success");
+            } else if (action === "complete") {
+                await completeAppointment(a, actor());
+                toast("Marked as completed.", "success");
+            } else if (action === "missed") {
+                await markMissed(a, actor());
+                toast("Marked as a no-show.", "success");
+            }
+        } catch (error) {
+            console.error("Update error:", error);
+            toast("That change couldn't be saved. Please try again.", "error");
             button.disabled = false;
+        } finally {
+            busy = false;
         }
     }
 
@@ -1005,7 +815,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         $("cancelDetail").innerHTML =
             `<strong>${escapeHtml(patientName(a))}</strong><br>` +
-            `${escapeHtml(serviceName(a))} · ${a.date ? formatDateLong(a.date) : ""} at ${a.time ? formatTime(a.time) : ""}`;
+            `${escapeHtml(serviceName(a))} · ${a.date ? formatDateLong(a.date) : ""} at ${a.time ? formatTime(a.time) : ""}` +
+            ` · ${escapeHtml(providerName(a))}`;
 
         $("cancelNote").value = "";
 
@@ -1026,28 +837,279 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeCancelModal();
+        if (event.key === "Escape") {
+            closeCancelModal();
+            closeStaffModal();
+        }
     });
 
     $("cancelConfirm").addEventListener("click", async () => {
 
         const a = pendingCancel;
 
-        if (!a) return;
+        if (!a || busy) return;
 
+        busy = true;
         $("cancelConfirm").disabled = true;
 
-        const saved = await setStatus(a, "cancelled", {
-            cancelledBy: "admin",
-            cancelledAt: serverTimestamp(),
-            clinicNote: $("cancelNote").value.trim()
-        }, true);
-
-        $("cancelConfirm").disabled = false;
-
-        if (saved) {
+        try {
+            await cancelAppointment(a, actor(), { note: $("cancelNote").value });
             closeCancelModal();
             toast("Appointment cancelled. The time is open again.", "success");
+        } catch (error) {
+            console.error("Cancel error:", error);
+            toast("That change couldn't be saved. Please try again.", "error");
+        } finally {
+            busy = false;
+            $("cancelConfirm").disabled = false;
+        }
+    });
+
+
+    /* =========================================
+       CLINIC STAFF
+       New staff accounts are created on a separate, temporary Firebase
+       app so the admin stays signed in. The new staff member then gets
+       a "set your password" email: the admin never knows the password.
+    ========================================= */
+
+    function staffWorkload(id) {
+        const today = toDateKey(new Date());
+        const upcoming = all.filter((a) => a.staffId === id && (a.date || "") >= today);
+        return {
+            pending: upcoming.filter((a) => statusOf(a) === "pending").length,
+            approved: upcoming.filter((a) => statusOf(a) === "approved").length,
+            completed: all.filter((a) => a.staffId === id && statusOf(a) === "completed").length
+        };
+    }
+
+    function renderStaff() {
+
+        const list = Object.entries(staff)
+            .map(([id, s]) => ({ id, ...s }))
+            .sort((a, b) => (a.active === false) - (b.active === false) || staffDisplayName(a).localeCompare(staffDisplayName(b)));
+
+        if (list.length === 0) {
+            $("staffList").innerHTML = `
+                <div class="empty-state">
+                    <h4>No clinic staff yet</h4>
+                    <p>Patients can't book until at least one doctor, nurse or dentist is added.</p>
+                    <button type="button" class="btn-primary" data-add-staff>Add the first staff member</button>
+                </div>`;
+            return;
+        }
+
+        $("staffList").innerHTML = `<div class="staff-grid">${list.map((s) => {
+            const load = staffWorkload(s.id);
+            const days = [0, 1, 2, 3, 4, 5, 6].filter((d) => rangesFor(s, d).length);
+            const services = Object.keys(s.services || {}).filter((k) => s.services[k]);
+
+            return `
+                <article class="staff-card${s.active === false ? " inactive" : ""}">
+                    <div class="staff-card-top">
+                        <span class="person-avatar ${escapeHtml(s.type)}">${escapeHtml((s.name || "?").split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase())}</span>
+                        <div>
+                            <h4>${escapeHtml(staffDisplayName(s))}</h4>
+                            <span class="type-chip staff-${escapeHtml(s.type)}">${escapeHtml(staffTypeLabel(s.type))}</span>
+                            ${s.active === false ? '<span class="type-chip off">Inactive</span>' : ""}
+                        </div>
+                    </div>
+
+                    <p class="staff-line"><a href="mailto:${escapeHtml(s.email)}">${escapeHtml(s.email || "")}</a>${s.phone ? ` · ${escapeHtml(s.phone)}` : ""}</p>
+                    ${s.specialty ? `<p class="staff-line">${escapeHtml(s.specialty)}</p>` : ""}
+                    <p class="staff-line">${services.map((k) => escapeHtml(SERVICES[k]?.name || k)).join(" · ") || "No services"}</p>
+                    <p class="staff-line muted">${days.length ? `Works ${escapeHtml(describeDays(days))}` : "No weekly hours set"}</p>
+
+                    <div class="staff-load">
+                        <span><strong>${load.pending}</strong> pending</span>
+                        <span><strong>${load.approved}</strong> upcoming</span>
+                        <span><strong>${load.completed}</strong> completed</span>
+                    </div>
+
+                    <div class="appt-actions">
+                        <button type="button" class="link-btn" data-edit-staff="${escapeHtml(s.id)}">Edit</button>
+                        <button type="button" class="link-btn" data-reset-staff="${escapeHtml(s.id)}">Send password email</button>
+                        <button type="button" class="link-btn ${s.active === false ? "success" : "danger"}" data-toggle-staff="${escapeHtml(s.id)}">${s.active === false ? "Reactivate" : "Deactivate"}</button>
+                    </div>
+                </article>`;
+        }).join("")}</div>`;
+    }
+
+    function renderServiceChecks(selected) {
+        $("staffServices").innerHTML = Object.entries(SERVICES).map(([id, svc]) => `
+            <label class="check-row">
+                <input type="checkbox" value="${id}" ${selected[id] ? "checked" : ""}>
+                <span>${escapeHtml(svc.name)}</span>
+            </label>`).join("");
+    }
+
+    function openStaffModal(id = null) {
+
+        editingStaffId = id;
+        const s = id ? staff[id] : null;
+
+        $("staffModalTitle").textContent = s ? "Edit staff member" : "Add a doctor, nurse or dentist";
+        $("staffSave").textContent = s ? "Save changes" : "Create account";
+        $("staffNameInput").value = s?.name || "";
+        $("staffEmailInput").value = s?.email || "";
+        $("staffEmailInput").readOnly = Boolean(s);
+        $("staffTypeInput").value = s?.type || "doctor";
+        $("staffCreateNote").hidden = Boolean(s);
+        $("staffError").textContent = "";
+
+        const defaults = Object.fromEntries(STAFF_TYPES[$("staffTypeInput").value].services.map((k) => [k, true]));
+        renderServiceChecks(s?.services || defaults);
+
+        $("staffModal").classList.add("show");
+        $("staffNameInput").focus();
+    }
+
+    function closeStaffModal() {
+        $("staffModal").classList.remove("show");
+        editingStaffId = null;
+    }
+
+    // New staff: pick the usual services for the chosen type
+    $("staffTypeInput").addEventListener("change", () => {
+        if (editingStaffId) return;
+        renderServiceChecks(Object.fromEntries(STAFF_TYPES[$("staffTypeInput").value].services.map((k) => [k, true])));
+    });
+
+    $("staffModalClose").addEventListener("click", closeStaffModal);
+    $("staffCancel").addEventListener("click", closeStaffModal);
+    $("staffModal").addEventListener("click", (event) => {
+        if (event.target === $("staffModal")) closeStaffModal();
+    });
+
+    $("addStaffBtn").addEventListener("click", () => openStaffModal());
+
+    function randomPassword() {
+        const bytes = crypto.getRandomValues(new Uint8Array(24));
+        return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 32) + "A!9";
+    }
+
+    async function createStaffLogin(email) {
+
+        const temp = initializeApp(app.options, `staff-create-${Date.now()}`);
+
+        try {
+            const tempAuth = initializeAuth(temp, { persistence: inMemoryPersistence });
+            const cred = await createUserWithEmailAndPassword(tempAuth, email, randomPassword());
+            await signOut(tempAuth);
+            return cred.user.uid;
+        } finally {
+            await deleteApp(temp);
+        }
+    }
+
+    $("staffSave").addEventListener("click", async () => {
+
+        const name = $("staffNameInput").value.trim().replace(/^Dr\.?\s+/i, "");
+        const email = $("staffEmailInput").value.trim().toLowerCase();
+        const type = $("staffTypeInput").value;
+        const services = Object.fromEntries(
+            [...$("staffServices").querySelectorAll("input:checked")].map((i) => [i.value, true]));
+
+        $("staffError").textContent = "";
+
+        if (!name) { $("staffError").textContent = "Enter the staff member's name."; return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $("staffError").textContent = "Enter a valid email address."; return; }
+        if (Object.keys(services).length === 0) { $("staffError").textContent = "Choose at least one service."; return; }
+
+        $("staffSave").disabled = true;
+
+        try {
+
+            if (editingStaffId) {
+
+                await update(ref(db, `staff/${editingStaffId}`), { name, type, services });
+                toast("Staff details saved.", "success");
+
+            } else {
+
+                const uid = await createStaffLogin(email);
+
+                await set(ref(db, `staff/${uid}`), {
+                    name,
+                    email,
+                    type,
+                    services,
+                    availability: DEFAULT_AVAILABILITY[type],
+                    active: true,
+                    createdAt: serverTimestamp(),
+                    createdBy: adminUser.uid
+                });
+
+                await sendPasswordResetEmail(auth, email);
+
+                toast(`${staffDisplayName({ name, type })} was added. They'll get an email to set their password.`, "success");
+            }
+
+            closeStaffModal();
+
+        } catch (error) {
+
+            console.error("Staff save error:", error);
+
+            $("staffError").textContent =
+                error.code === "auth/email-already-in-use" ? "An account already uses this email. Use the person's work email that isn't registered yet."
+                : error.code === "auth/invalid-email" ? "That email address isn't valid."
+                : error.code === "auth/operation-not-allowed" ? "Email/password sign-in is turned off in Firebase Authentication."
+                : "Couldn't save. Check your connection and the database rules.";
+
+        } finally {
+            $("staffSave").disabled = false;
+        }
+    });
+
+    $("staffList").addEventListener("click", async (event) => {
+
+        if (event.target.closest("[data-add-staff]")) {
+            openStaffModal();
+            return;
+        }
+
+        const edit = event.target.closest("[data-edit-staff]");
+        const reset = event.target.closest("[data-reset-staff]");
+        const toggle = event.target.closest("[data-toggle-staff]");
+
+        if (edit) {
+            openStaffModal(edit.dataset.editStaff);
+            return;
+        }
+
+        if (reset) {
+            const s = staff[reset.dataset.resetStaff];
+            if (!s?.email) return;
+
+            try {
+                await sendPasswordResetEmail(auth, s.email);
+                toast(`Password email sent to ${s.email}.`, "success");
+            } catch (error) {
+                console.error("Reset email error:", error);
+                toast("Couldn't send the email.", "error");
+            }
+            return;
+        }
+
+        if (toggle) {
+            const id = toggle.dataset.toggleStaff;
+            const s = staff[id];
+            const deactivate = s.active !== false;
+
+            const upcoming = all.filter((a) => a.staffId === id && ["pending", "approved"].includes(statusOf(a)) && whenOf(a) > new Date()).length;
+
+            if (deactivate && !confirm(
+                `Deactivate ${staffDisplayName(s)}? They won't be able to log in to the staff dashboard or receive new bookings.` +
+                (upcoming ? `\n\nThey still have ${upcoming} upcoming appointment${upcoming === 1 ? "" : "s"}. Cancel or reassign those first.` : ""))) return;
+
+            try {
+                await update(ref(db, `staff/${id}`), { active: !deactivate });
+                toast(deactivate ? "Staff member deactivated." : "Staff member reactivated.", "success");
+            } catch (error) {
+                console.error("Toggle staff error:", error);
+                toast("Couldn't update the staff member.", "error");
+            }
         }
     });
 
@@ -1080,7 +1142,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const header = ["Date", "Day", "Time", "Service", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Reason", "Note"];
+        const header = ["Date", "Day", "Time", "Service", "Provider", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Attendance", "Reason", "Instructions", "Note"];
 
         const rows = list.map((a) => {
             const dayObj = a.date ? parseDateKey(a.date) : null;
@@ -1090,22 +1152,25 @@ document.addEventListener("DOMContentLoaded", () => {
                 dayName,
                 a.time ? formatTime(a.time) : "",
                 serviceName(a),
+                providerName(a),
                 patientName(a),
                 patientRole(a),
                 patientId(a),
                 patientDetail(a),
                 patientEmail(a),
                 patientPhone(a),
-                BADGES[statusOf(a)] || statusOf(a),
+                stateLabel(a),
+                a.attendance === "confirmed" ? "Confirmed" : (statusOf(a) === "approved" ? "Not confirmed yet" : ""),
                 a.reason || "",
-                a.clinicNote || ""
+                a.instructions || "",
+                a.clinicNote || a.declineReason || ""
             ];
         });
 
         const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 
         // BOM so Excel reads accented names correctly
-        const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+        const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
 
         const filename = isWeekly
@@ -1164,16 +1229,21 @@ document.addEventListener("DOMContentLoaded", () => {
         // Only the hard-coded admin account may use this page
         if (user.uid !== ADMIN_UID) {
 
-            let isEmployee = false;
+            let destination = "../student/st-appointment.html";
 
             try {
-                const snap = await get(ref(db, `employees/${user.uid}`));
-                isEmployee = snap.exists();
+                const [employeeSnap, staffSnap] = await Promise.all([
+                    get(ref(db, `employees/${user.uid}`)),
+                    get(ref(db, `staff/${user.uid}`)).catch(() => null)
+                ]);
+
+                if (staffSnap?.exists()) destination = "../staff/staff.html";
+                else if (employeeSnap.exists()) destination = "../employee/em-appointment.html";
             } catch (error) {
                 console.warn("Could not check account type:", error);
             }
 
-            window.location.replace(isEmployee ? "../employee/em-appointment.html" : "../student/st-appointment.html");
+            window.location.replace(destination);
             return;
         }
 
@@ -1183,14 +1253,21 @@ document.addEventListener("DOMContentLoaded", () => {
         $("accessCheck").hidden = true;
         $("adminContent").hidden = false;
 
-        await loadAppointments();
+        try {
+            await loadProfiles();
+        } catch (error) {
+            console.error("Failed to load profiles:", error);
+        }
 
-        // Quiet refresh so new bookings show up without reloading
+        watchData();
+
+        // The admin page also sends due reminders / cancels unconfirmed visits
         setInterval(() => {
-            if (!document.hidden && !busy && !$("cancelModal").classList.contains("show")) {
-                loadAppointments(true);
+            if (loaded && !document.hidden) {
+                sweepAppointments(all);
+                render();
             }
-        }, REFRESH_MS);
+        }, SWEEP_MS);
     });
 
 });

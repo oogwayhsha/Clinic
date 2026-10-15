@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../dashboard/profile.css">
+    <link rel="stylesheet" href="../shared/notify.css">
 </head>
 
 <body>
@@ -43,12 +44,16 @@
                 <span>Profile</span>
             </a>
 
+            <div class="bell-slot" id="bellSlotDesktop"></div>
+
             <button id="logoutBtn" class="logout-btn">Logout</button>
 
         </nav>
 
 
         <div class="mobile-header-btns">
+
+            <div class="bell-slot" id="bellSlotMobile"></div>
 
             <a href="student-profile.html" class="mobile-icon-btn active" aria-label="My Profile" title="Profile">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -198,6 +203,24 @@
                 </div>
 
             </div>
+
+        </section>
+
+
+        <!-- MEDICAL HISTORY -->
+        <section class="profile-card">
+
+            <div class="card-header">
+                <div>
+                    <span class="section-label">HEALTH</span>
+                    <h3>Medical History</h3>
+                </div>
+                <a href="st-appointment.html" class="edit-btn">Update when booking</a>
+            </div>
+
+            <div id="medicalHistory"><p class="history-empty">Loading...</p></div>
+
+            <p class="history-help">Only clinic staff can see this. It's filled in for you each time you book, and you can change it in the booking form.</p>
 
         </section>
 

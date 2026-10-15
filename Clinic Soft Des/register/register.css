@@ -396,3 +396,11 @@ body {
   background-attachment: fixed;
   backdrop-filter: blur(3px);
 }
+/* Small helper text under a field */
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}

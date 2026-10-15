@@ -1,0 +1,157 @@
+{
+  // NUFV CARES: Realtime Database security rules
+  // Paste into Firebase Console > Realtime Database > Rules, then Publish.
+  // Admin  = the hard-coded admin UID (same as shared/config.js)
+  // Staff  = an active record in staff/{uid} (created by the admin)
+  "rules": {
+
+    "students": {
+      ".read": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true)",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2')"
+      }
+    },
+
+    "employees": {
+      ".read": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true)",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2')"
+      }
+    },
+
+    // Doctors / nurses / dentists. Everyone signed in can see the team
+    // (patients choose a provider). Only the admin adds staff or changes
+    // role/services/active; staff edit their own hours, days off and profile.
+    "staff": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2'",
+        "availability": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true"
+        },
+        "daysOff": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true"
+        },
+        "name": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true",
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+        },
+        "specialty": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true",
+          ".validate": "newData.isString() && newData.val().length <= 60"
+        },
+        "phone": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true",
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "bio": {
+          ".write": "auth != null && auth.uid === $uid && root.child('staff').child($uid).child('active').val() === true",
+          ".validate": "newData.isString() && newData.val().length <= 200"
+        }
+      }
+    },
+
+    "appointments": {
+      // Staff + admin read everything; a patient may only query their own
+      ".read": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || (query.orderByChild === 'uid' && query.equalTo === auth.uid))",
+      ".indexOn": ["uid", "staffId", "date"],
+
+      "$id": {
+        ".read": "auth != null && data.child('uid').val() === auth.uid",
+
+        ".write": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || (!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'pending' && (root.child('students').child(auth.uid).exists() || root.child('employees').child(auth.uid).exists()) && root.child('staff').child(newData.child('staffId').val()).child('active').val() === true) || (data.exists() && data.child('uid').val() === auth.uid && newData.child('uid').val() === auth.uid && newData.child('staffId').val() === data.child('staffId').val() && newData.child('date').val() === data.child('date').val() && newData.child('time').val() === data.child('time').val() && (newData.child('status').val() === data.child('status').val() || newData.child('status').val() === 'cancelled')))",
+
+        "status": {
+          ".validate": "newData.isString() && newData.val().matches(/^(pending|approved|confirmed|declined|cancelled|completed|missed)$/)"
+        },
+        "attendance": {
+          ".validate": "newData.isString() && newData.val().matches(/^(pending|confirmed)$/)"
+        },
+        "reason": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "instructions": { ".validate": "newData.isString() && newData.val().length <= 600" }
+      }
+    },
+
+    // bookings/{date}/{staffId}/{HHMM} = appointmentId
+    // One provider, one patient per time slot: a taken slot can't be overwritten.
+    "bookings": {
+      ".read": "auth != null",
+      "$date": {
+        "$staff": {
+          "$slot": {
+            ".write": "auth != null && ((!data.exists() && newData.exists() && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || newData.parent().parent().parent().parent().child('appointments').child(newData.val()).child('uid').val() === auth.uid)) || (data.exists() && !newData.exists() && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || root.child('appointments').child(data.val()).child('uid').val() === auth.uid)))",
+            ".validate": "newData.isString() && newData.parent().parent().parent().parent().child('appointments').child(newData.val()).child('staffId').val() === $staff && newData.parent().parent().parent().parent().child('appointments').child(newData.val()).child('date').val() === $date"
+          }
+        }
+      }
+    },
+
+    // In-app notifications: anyone signed in can send one (signed as
+    // themselves); only the owner reads, marks read or deletes them.
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".indexOn": ["createdAt"],
+        "$nid": {
+          ".write": "auth != null && ((!data.exists() && newData.child('from').val() === auth.uid) || auth.uid === $uid)",
+          ".validate": "newData.hasChildren(['title', 'createdAt'])",
+          "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "body": { ".validate": "newData.isString() && newData.val().length <= 500" }
+        }
+      }
+    },
+
+    // Health information: the patient and clinic staff only
+    "medicalHistory": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true)",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    // Private visit notes: clinic staff + admin only (patients can't read them)
+    "visitNotes": {
+      ".read": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true)",
+      ".write": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true)"
+    },
+
+    // Card UID -> account (for card tap login). Readable one card at a time
+    // before login, never as a list. Passwords may NOT be stored here.
+    "rfid_lookup": {
+      "$card": {
+        ".read": true,
+        ".write": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || (!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && data.child('uid').val() === auth.uid))",
+        "authKey": { ".validate": false }
+      }
+    },
+
+    // Phone scanner station broadcasts the last tapped card to the login page
+    "rfid_tap": {
+      ".read": true,
+      ".write": true,
+      ".validate": "newData.hasChildren(['cardUid', 'timestamp']) && newData.child('cardUid').isString() && newData.child('cardUid').val().length <= 32"
+    },
+
+    "contactMessages": {
+      ".read": "auth != null && auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2'",
+      "$id": {
+        ".write": "auth != null && (!data.exists() || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2')"
+      }
+    },
+
+    // Old one-booking-per-time-slot data: kept readable so old
+    // appointments can still free their slot when cancelled
+    "slots": {
+      ".read": "auth != null",
+      "$date": {
+        "$service": {
+          "$slot": {
+            ".write": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || data.val() === auth.uid)"
+          }
+        }
+      }
+    }
+  }
+}

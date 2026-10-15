@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="../shared/notify.css">
     <style>
         /* Keep the header fixed/sticky at the top with a solid white background */
         .header {
@@ -50,6 +51,8 @@
 
                 <!-- Desktop Header Actions (Profile + Logout) -->
                 <div class="desktop-header-actions">
+                    <div class="bell-slot" id="bellSlotDesktop"></div>
+
                     <a href="profile.html" class="desktop-profile-btn" id="deskProfileBtn" aria-label="User Profile" title="Profile">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -70,6 +73,8 @@
 
                 <!-- Mobile Action Buttons -->
                 <div class="mobile-header-btns">
+                    <div class="bell-slot" id="bellSlotMobile"></div>
+
                     <a href="../login/login.html" class="mobile-logout-btn" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -700,6 +705,16 @@
                     <details class="faq-item">
                         <summary>How do I cancel or reschedule?</summary>
                         <p>Open "View My Appointments" from the Home page to cancel or change your booking. Please do so at least a day before your appointment.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Why am I asked to confirm my appointment?</summary>
+                        <p>A day before your visit you'll get a reminder by email and in the app asking if you're still coming. Please tap "Yes, I'll be there" or cancel. If you don't answer in time, the appointment is cancelled automatically so another student or employee can use the slot.</p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>Can I choose my doctor or nurse?</summary>
+                        <p>Yes. When booking you can let the clinic assign whoever is free, ask for any doctor or nurse, or pick a specific person you've seen before.</p>
                     </details>
 
                     <details class="faq-item">

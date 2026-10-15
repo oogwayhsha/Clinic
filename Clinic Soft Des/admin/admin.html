@@ -81,7 +81,7 @@
                 <div>
                     <span class="page-label">ADMIN</span>
                     <h2>Appointment Management</h2>
-                    <p>Oversee every student and employee appointment: confirm, complete or cancel them.</p>
+                    <p>Oversee every appointment and provider, and manage the clinic's doctors, nurses and dentists.</p>
                 </div>
 
                 <div class="header-actions">
@@ -104,11 +104,11 @@
                 <div class="stat-card">
                     <span class="stat-label">Pending</span>
                     <strong id="statPending">0</strong>
-                    <small>need confirmation</small>
+                    <small>waiting for a provider</small>
                 </div>
 
                 <div class="stat-card">
-                    <span class="stat-label">Confirmed</span>
+                    <span class="stat-label">Approved</span>
                     <strong id="statConfirmed">0</strong>
                     <small>upcoming</small>
                 </div>
@@ -143,6 +143,15 @@
                         <line x1="3" y1="18" x2="3.01" y2="18"></line>
                     </svg>
                     All Appointments (Card List)
+                </button>
+                <button type="button" class="view-switch-btn" id="viewStaffBtn" role="tab" aria-selected="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    Clinic Staff
                 </button>
             </div>
 
@@ -210,11 +219,12 @@
                             <label for="weekStatusFilter">Status</label>
                             <select id="weekStatusFilter">
                                 <option value="all">All statuses</option>
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
+                                <option value="pending">Pending approval</option>
+                                <option value="approved">Approved</option>
                                 <option value="completed">Completed</option>
-                                <option value="missed">Missed</option>
+                                <option value="missed">No-show</option>
                                 <option value="cancelled">Cancelled</option>
+                                <option value="declined">Declined</option>
                             </select>
                         </div>
                         <div class="week-filter-group">
@@ -224,6 +234,12 @@
                                 <option value="consultation">Medical Consultation</option>
                                 <option value="dental">Dental Services</option>
                                 <option value="certificate">Medical Certificate</option>
+                            </select>
+                        </div>
+                        <div class="week-filter-group">
+                            <label for="weekProviderFilter">Provider</label>
+                            <select id="weekProviderFilter">
+                                <option value="all">All providers</option>
                             </select>
                         </div>
                         <div class="week-filter-group search">
@@ -266,11 +282,12 @@
                             <label for="statusFilter">Status</label>
                             <select id="statusFilter">
                                 <option value="all">All statuses</option>
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
+                                <option value="pending">Pending approval</option>
+                                <option value="approved">Approved</option>
                                 <option value="completed">Completed</option>
-                                <option value="missed">Missed</option>
+                                <option value="missed">No-show</option>
                                 <option value="cancelled">Cancelled</option>
+                                <option value="declined">Declined</option>
                             </select>
                         </div>
 
@@ -281,6 +298,13 @@
                                 <option value="consultation">Medical Consultation</option>
                                 <option value="dental">Dental Services</option>
                                 <option value="certificate">Medical Certificate</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="providerFilter">Provider</label>
+                            <select id="providerFilter">
+                                <option value="all">All providers</option>
                             </select>
                         </div>
 
@@ -301,6 +325,25 @@
 
                 <div id="appointmentList" aria-live="polite">
                     <div class="empty-state"><p>Loading appointments...</p></div>
+                </div>
+
+            </section>
+
+
+            <!-- CLINIC STAFF -->
+            <section id="staffSection" hidden>
+
+                <div class="card staff-head">
+                    <div>
+                        <span class="section-label">CLINIC STAFF</span>
+                        <h3>Doctors, nurses and dentists</h3>
+                        <p>Patients book with these people. Each one gets a staff dashboard to approve requests and set their own hours.</p>
+                    </div>
+                    <button type="button" class="btn-primary" id="addStaffBtn">+ Add staff member</button>
+                </div>
+
+                <div id="staffList">
+                    <div class="empty-state"><p>Loading the clinic team...</p></div>
                 </div>
 
             </section>
@@ -340,6 +383,61 @@
             <div class="modal-actions">
                 <button type="button" id="cancelKeep" class="cancel-btn">Keep appointment</button>
                 <button type="button" id="cancelConfirm" class="danger-btn">Yes, cancel it</button>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ADD / EDIT STAFF MODAL -->
+    <div class="modal" id="staffModal" role="dialog" aria-modal="true" aria-labelledby="staffModalTitle">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">CLINIC STAFF</span>
+                    <h3 id="staffModalTitle">Add a doctor, nurse or dentist</h3>
+                </div>
+
+                <button type="button" id="staffModalClose" class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <div class="form-group modal-field">
+                <label for="staffNameInput">Full name</label>
+                <input type="text" id="staffNameInput" maxlength="60" placeholder="e.g. Maria Santos">
+            </div>
+
+            <div class="form-group modal-field">
+                <label for="staffEmailInput">Work email (their login)</label>
+                <input type="email" id="staffEmailInput" maxlength="100" placeholder="e.g. msantos@nu-fairview.edu.ph">
+            </div>
+
+            <div class="form-group modal-field">
+                <label for="staffTypeInput">Role</label>
+                <select id="staffTypeInput">
+                    <option value="doctor">Doctor</option>
+                    <option value="nurse">Nurse</option>
+                    <option value="dentist">Dentist</option>
+                </select>
+            </div>
+
+            <fieldset class="form-group modal-field">
+                <legend>Services they handle</legend>
+                <div class="check-grid" id="staffServices"></div>
+            </fieldset>
+
+            <p class="modal-text small-note" id="staffCreateNote">
+                An account is created for this email and they receive a link to set their own password.
+                Default weekly hours are added; they can change them from their dashboard.
+            </p>
+
+            <p class="error-text" id="staffError" role="alert"></p>
+
+            <div class="modal-actions">
+                <button type="button" id="staffCancel" class="cancel-btn">Cancel</button>
+                <button type="button" id="staffSave" class="btn-primary">Create account</button>
             </div>
 
         </div>

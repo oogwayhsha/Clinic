@@ -125,6 +125,11 @@
                                 <option value="employee">
                                     Employee
                                 </option>
+
+                                <option value="staff">
+                                    Clinic Staff (Doctor / Nurse)
+                                </option>
+
                                 <option value="admin">
                                     Admin
                                 </option>
@@ -299,6 +304,63 @@
             </div>
 
         </section>
+
+    </div>
+
+
+    <!-- =====================================================
+         CARD TAP: CONFIRM WITH PASSWORD
+         A tap only identifies the account; the password proves
+         the person holding the card is its owner.
+    ====================================================== -->
+    <div class="tap-modal" id="tapModal" role="dialog" aria-modal="true" aria-labelledby="tapTitle" hidden>
+
+        <form class="tap-card" id="tapForm" novalidate>
+
+            <button type="button" class="tap-close" id="tapCancel" aria-label="Cancel">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="tap-icon">
+                <i class="fa-solid fa-id-card"></i>
+            </div>
+
+            <h3 id="tapTitle">Confirm it's you</h3>
+
+            <p class="tap-help">Your card was recognized. Enter your password to finish logging in.</p>
+
+            <div class="tap-who">
+                <strong id="tapName"></strong>
+                <span><span id="tapRole"></span> · <span id="tapEmail"></span></span>
+            </div>
+
+            <!-- For password managers only -->
+            <input type="email" id="tapUsername" autocomplete="username" hidden>
+
+            <div class="form-group">
+
+                <label for="tapPassword">Password</label>
+
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="tapPassword" placeholder="Enter your password" autocomplete="current-password">
+                    <i class="fa-solid fa-eye password-toggle" id="toggleTapPassword"></i>
+                </div>
+
+                <span id="tapError" class="error"></span>
+
+            </div>
+
+            <button type="submit" class="login-button" id="tapSubmit">
+                <span>Confirm and Log In</span>
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+            <button type="button" class="tap-switch" id="tapNotMe">
+                Not you? Log in with a different account
+            </button>
+
+        </form>
 
     </div>
 

@@ -15,11 +15,12 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
+import { ADMIN_UID } from "../shared/config.js";
+import { mountBell } from "../shared/notify.js";
+
 // ==========================================
 // ROLE -> PAGE ROUTING
 // ==========================================
-// The hard-coded admin account (same UID as admin.js and your database rules)
-const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
 
 const ADMIN_PAGE = "../admin/admin.html";
 
@@ -205,6 +206,14 @@ function initDashboard() {
                 if (employeeSnap.exists()) {
                     currentRole = "employee";
                     userData = employeeSnap.val();
+                } else {
+                    // Doctors / nurses / dentists have their own dashboard
+                    const staffSnap = await get(ref(db, `staff/${user.uid}`)).catch(() => null);
+
+                    if (staffSnap?.exists()) {
+                        window.location.replace("../staff/staff.html");
+                        return;
+                    }
                 }
             }
 
@@ -222,6 +231,11 @@ function initDashboard() {
                 if (userRoleDisplay) {
                     userRoleDisplay.textContent = currentRole;
                 }
+
+                mountBell(user.uid, [
+                    document.getElementById("bellSlotDesktop"),
+                    document.getElementById("bellSlotMobile")
+                ]);
 
             } else {
 

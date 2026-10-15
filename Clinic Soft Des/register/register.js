@@ -7,9 +7,11 @@ import { ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.16
 
 let currentRole = "student";
 
-// Set to true if only NU emails should be accepted
+// Which account types must use their NU email.
+// Students may use any email for now (e.g. Gmail): appointment
+// approvals and reminders are sent to it.
 // (students: @students.nu-fairview.edu.ph, employees: @nu-fairview.edu.ph)
-const REQUIRE_NU_EMAIL = true;
+const REQUIRE_NU_EMAIL = { student: false, employee: true };
 
 const registerForm = document.getElementById("registerForm");
 const registerBtn = document.getElementById("registerBtn");
@@ -206,14 +208,14 @@ window.switchRole = function (role) {
     studentFields.style.display = "block";
     employeeFields.style.display = "none";
     formRoleTitle.textContent = "Student Registration";
-    regEmail.placeholder = "username@students.nu-fairview.edu.ph";
+    regEmail.placeholder = REQUIRE_NU_EMAIL.student ? "username@students.nu-fairview.edu.ph" : "e.g. yourname@gmail.com";
   } else {
     employeeTab.classList.add("active");
     studentTab.classList.remove("active");
     employeeFields.style.display = "block";
     studentFields.style.display = "none";
     formRoleTitle.textContent = "Employee / Staff Registration";
-    regEmail.placeholder = "username@nu-fairview.edu.ph";
+    regEmail.placeholder = REQUIRE_NU_EMAIL.employee ? "username@nu-fairview.edu.ph" : "e.g. yourname@gmail.com";
   }
 };
 
@@ -310,13 +312,11 @@ async function handleRegister() {
     if (currentRole === "employee" && lower.includes("@students")) {
       fail("regEmail", "Student emails (@students...) can't be used for Employee / Staff registration.");
     }
-    // Optional strict NU-domain check (controlled by REQUIRE_NU_EMAIL)
-    else if (REQUIRE_NU_EMAIL) {
-      if (currentRole === "student" && !lower.endsWith("@students.nu-fairview.edu.ph")) {
-        fail("regEmail", "Use your NU student email (@students.nu-fairview.edu.ph).");
-      } else if (currentRole === "employee" && !lower.endsWith("@nu-fairview.edu.ph")) {
-        fail("regEmail", "Use your NU employee email (@nu-fairview.edu.ph).");
-      }
+    // NU-domain check per account type (controlled by REQUIRE_NU_EMAIL)
+    else if (currentRole === "student" && REQUIRE_NU_EMAIL.student && !lower.endsWith("@students.nu-fairview.edu.ph")) {
+      fail("regEmail", "Use your NU student email (@students.nu-fairview.edu.ph).");
+    } else if (currentRole === "employee" && REQUIRE_NU_EMAIL.employee && !lower.endsWith("@nu-fairview.edu.ph")) {
+      fail("regEmail", "Use your NU employee email (@nu-fairview.edu.ph).");
     }
   }
 
@@ -405,15 +405,16 @@ async function handleRegister() {
     const folder = currentRole === "student" ? "students" : "employees";
     await set(ref(db, `${folder}/${user.uid}`), userData);
 
-    // 4. Save RFID Lookup Index if card was provided
+    // 4. Save RFID Lookup Index if card was provided.
+    // The card only identifies the account: the password is NEVER stored,
+    // so card logins always ask for it.
     if (rfidUid) {
       try {
         await set(ref(db, `rfid_lookup/${rfidUid}`), {
           uid: user.uid,
           email: email,
           role: currentRole,
-          name: name,
-          authKey: password
+          name: name
         });
       } catch (rfidErr) {
         console.warn("Could not save rfid_lookup entry:", rfidErr);
