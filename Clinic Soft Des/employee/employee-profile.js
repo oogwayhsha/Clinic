@@ -16,6 +16,14 @@ import {
 
 import { medicalHistoryHtml } from "../shared/clinic.js";
 import { mountBell } from "../shared/notify.js";
+import {
+    loadAvatar,
+    saveAvatar,
+    showAvatar,
+    pickImage,
+    shrinkImage,
+    photoErrorMessage
+} from "../shared/avatar.js";
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -48,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let currentUser = null;
     let currentData = {};
+    let photo = null;           // avatars/{uid}/photo
 
     // Where students go if they open the employee page by mistake
     const STUDENT_PAGE = "student-profile.html";
@@ -101,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setText("summaryName", name, "Employee");
         setText("summaryId", data.employeeId);
-        avatar.textContent = getInitials(name);
+        showAvatar(avatar, photo, name || getInitials(name));
 
         setText("fullName", name);
         setText("employeeId", data.employeeId);
@@ -245,6 +254,10 @@ document.addEventListener("DOMContentLoaded", () => {
             renderProfile(data, user);
             applyPreferences(data.preferences);
             mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")]);
+
+            photo = await loadAvatar(user.uid);
+            showAvatar(avatar, photo, currentData.fullName);
+            $("avatarRemove").hidden = !photo;
             await Promise.all([
                 loadAppointmentStats(user.uid, data),
                 loadMedicalHistory(user.uid)
@@ -460,10 +473,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const avatarEdit = $("avatarEdit");
 
-    if (avatarEdit) {
-        avatarEdit.addEventListener("click", () => {
-            alert("Profile photo upload can be connected to Firebase Storage.");
-        });
+    async function changePhoto(newPhoto) {
+
+        if (!currentUser) return;
+
+        avatarEdit.disabled = true;
+        avatar.classList.add("saving");
+
+        try {
+            await saveAvatar(currentUser.uid, newPhoto);
+            photo = newPhoto;
+            showAvatar(avatar, photo, currentData.fullName);
+            $("avatarRemove").hidden = !photo;
+        } catch (error) {
+            console.error("Photo error:", error);
+            alert(photoErrorMessage(error));
+        } finally {
+            avatarEdit.disabled = false;
+            avatar.classList.remove("saving");
+        }
     }
+
+    avatarEdit.addEventListener("click", async () => {
+
+        const file = await pickImage();
+        if (!file) return;
+
+        try {
+            await changePhoto(await shrinkImage(file));
+        } catch (error) {
+            alert(photoErrorMessage(error));
+        }
+    });
+
+    $("avatarRemove").addEventListener("click", () => {
+        if (confirm("Remove your profile photo?")) changePhoto(null);
+    });
 
 });

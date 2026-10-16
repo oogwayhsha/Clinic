@@ -47,6 +47,8 @@ import {
     historyTimelineHtml
 } from "../shared/clinic.js";
 
+import { loadAvatars, avatarInner } from "../shared/avatar.js";
+
 import {
     approveAppointment,
     cancelAppointment,
@@ -110,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let all = [];
     let profiles = {};         // uid -> student / employee record
     let staff = {};            // uid -> clinic staff record
+    let staffPhotos = {};      // uid -> photo
     let loaded = false;
     let busy = false;          // an action is being saved
 
@@ -169,6 +172,10 @@ document.addEventListener("DOMContentLoaded", () => {
             staff = snapshot.val() || {};
             fillProviderFilters();
             renderStaff();
+            loadAvatars(Object.keys(staff)).then((photos) => {
+                staffPhotos = photos;
+                renderStaff();
+            });
             if (loaded) render();
         }, (error) => console.error("Failed to load staff:", error));
     }
@@ -907,7 +914,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return `
                 <article class="staff-card${s.active === false ? " inactive" : ""}">
                     <div class="staff-card-top">
-                        <span class="person-avatar ${escapeHtml(s.type)}">${escapeHtml((s.name || "?").split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase())}</span>
+                        <span class="person-avatar ${escapeHtml(s.type)}">${avatarInner(staffPhotos[s.id], s.name)}</span>
                         <div>
                             <h4>${escapeHtml(staffDisplayName(s))}</h4>
                             <span class="type-chip staff-${escapeHtml(s.type)}">${escapeHtml(staffTypeLabel(s.type))}</span>

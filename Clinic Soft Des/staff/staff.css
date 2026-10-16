@@ -89,6 +89,11 @@
 /* My profile */
 .profile-preview { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 18px; border: 1.5px solid var(--line); border-radius: 14px; background: #fbfcfe; }
 .preview-bio { color: #4e5b70; font-size: 12px; line-height: 1.45; margin-top: 2px; }
+.person-avatar.big { width: 64px; height: 64px; font-size: 20px; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.record-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.record-head strong { display: block; color: var(--navy); font-size: 17px; }
+.record-head span:not(.person-avatar) { color: var(--muted); font-size: 12.5px; }
 .record-grid.single { grid-template-columns: minmax(0, 1fr); }
 .account-note { margin: 14px 0; font-size: 12.5px; }
 

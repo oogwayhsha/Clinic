@@ -65,6 +65,7 @@ import {
 } from "../shared/clinic.js";
 
 import { mountBell } from "../shared/notify.js";
+import { loadAvatars, avatarInner } from "../shared/avatar.js";
 
 import {
     notifyNewRequest,
@@ -114,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let patient = { name: "", id: "", phone: "", email: "" };
 
     let staffMap = {};          // staff/{uid}
+    let staffPhotos = {};       // uid -> photo
     let staffLoaded = false;
     let bookings = {};          // bookings/{date}/{staffId}/{HHMM} = appointmentId
     let bookingsLoaded = false;
@@ -239,11 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
        STEP 2: PROVIDER
     ========================================= */
 
-    const initials = (name) => (name || "")
-        .replace(/^Dr\.?\s+/i, "")
-        .split(/\s+/).filter(Boolean).slice(0, 2)
-        .map((p) => p[0].toUpperCase()).join("") || "?";
-
     function workDays(staff) {
         const days = [0, 1, 2, 3, 4, 5, 6].filter((d) => rangesFor(staff, d).length > 0);
         return days.length ? describeDays(days) : "No hours set";
@@ -299,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const on = selected("person", s.id);
                     return `
                         <button type="button" class="person-card${on ? " selected" : ""}" data-pref="person:${escapeHtml(s.id)}" aria-pressed="${on}">
-                            <span class="person-avatar ${escapeHtml(s.type)}">${escapeHtml(initials(s.name))}</span>
+                            <span class="person-avatar ${escapeHtml(s.type)}">${avatarInner(staffPhotos[s.id], s.name)}</span>
                             <span class="person-text">
                                 <strong>${escapeHtml(staffDisplayName(s))}</strong>
                                 <small>${escapeHtml(staffTypeLabel(s.type))}${s.specialty ? ` · ${escapeHtml(s.specialty)}` : ""} · ${escapeHtml(workDays(s))}</small>
@@ -1266,6 +1263,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         staffLoaded = true;
+
+        // Photos load after the list so booking isn't held up by them
+        loadAvatars(Object.keys(staffMap)).then((photos) => {
+            staffPhotos = photos;
+            renderProviders();
+        });
 
         // ?service=dental arrives before the team loads: re-check the choice
         if (state.service && state.pref.kind !== "any" && candidates().length === 0) state.pref = { kind: "any" };

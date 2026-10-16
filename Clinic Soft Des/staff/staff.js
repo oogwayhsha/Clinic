@@ -53,6 +53,14 @@ import {
 } from "../shared/clinic.js";
 
 import { mountBell } from "../shared/notify.js";
+import {
+    loadAvatar,
+    saveAvatar,
+    avatarInner,
+    pickImage,
+    shrinkImage,
+    photoErrorMessage
+} from "../shared/avatar.js";
 
 import {
     approveAppointment,
@@ -123,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ========================================= */
 
     let me = null;              // Firebase user
+    let myPhoto = null;         // avatars/{uid}/photo
     let profile = {};           // staff/{uid}
     let mine = [];              // appointments assigned to me
     let loaded = false;
@@ -551,10 +560,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const folder = roleOf(a) === "employee" ? "employees" : "students";
 
-            const [profileSnap, historySnap, visitsSnap] = await Promise.all([
+            const [profileSnap, historySnap, visitsSnap, patientPhoto] = await Promise.all([
                 get(ref(db, `${folder}/${a.uid}`)),
                 get(ref(db, `medicalHistory/${a.uid}`)),
-                get(query(ref(db, "appointments"), orderByChild("uid"), equalTo(a.uid)))
+                get(query(ref(db, "appointments"), orderByChild("uid"), equalTo(a.uid))),
+                loadAvatar(a.uid)
             ]);
 
             const p = profileSnap.val() || {};
@@ -587,6 +597,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const autoCancelled = visits.filter((v) => v.cancelReason === "no-confirmation").length;
 
             $("patientBody").innerHTML = `
+                <div class="record-head">
+                    <span class="person-avatar big">${avatarInner(patientPhoto, p.fullName || p.name || a.patientName)}</span>
+                    <div>
+                        <strong>${escapeHtml(p.fullName || p.name || a.patientName || "Patient")}</strong>
+                        <span>${roleOf(a) === "employee" ? "Employee" : "Student"}</span>
+                    </div>
+                </div>
+
                 <div class="record-grid">
                     ${info.map(([label, value]) => `
                         <div class="record-item">
@@ -1122,11 +1140,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const bio = $("profBio").value.trim();
 
         $("profilePreview").innerHTML = `
-            <span class="person-avatar ${escapeHtml(profile.type)}">${escapeHtml(name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("") || "?")}</span>
+            <span class="person-avatar big ${escapeHtml(profile.type)}">${avatarInner(myPhoto, name)}</span>
             <span class="person-text">
                 <strong>${escapeHtml(staffDisplayName(preview))}</strong>
                 <small>${escapeHtml(staffTypeLabel(profile.type))}${specialty ? ` · ${escapeHtml(specialty)}` : ""}</small>
                 ${bio ? `<small class="preview-bio">${escapeHtml(bio)}</small>` : ""}
+                <span class="photo-actions">
+                    <button type="button" class="link-btn" data-photo="change">${myPhoto ? "Change photo" : "Add a photo"}</button>
+                    ${myPhoto ? '<button type="button" class="link-btn danger" data-photo="remove">Remove</button>' : ""}
+                </span>
             </span>`;
 
         $("profBioCount").textContent = `${$("profBio").value.length} / 200`;
@@ -1148,6 +1170,42 @@ document.addEventListener("DOMContentLoaded", () => {
             $("profileState").textContent = "Unsaved changes";
             renderProfilePreview();
         });
+    });
+
+    // Photo is saved right away (separate from the Save profile button)
+    $("profilePreview").addEventListener("click", async (event) => {
+
+        const button = event.target.closest("[data-photo]");
+        if (!button) return;
+
+        let newPhoto = null;
+
+        if (button.dataset.photo === "change") {
+            const file = await pickImage();
+            if (!file) return;
+
+            try {
+                newPhoto = await shrinkImage(file);
+            } catch (error) {
+                toast(photoErrorMessage(error), "error");
+                return;
+            }
+        } else if (!confirm("Remove your profile photo?")) {
+            return;
+        }
+
+        button.disabled = true;
+
+        try {
+            await saveAvatar(me.uid, newPhoto);
+            myPhoto = newPhoto;
+            renderProfilePreview();
+            toast(newPhoto ? "Photo updated. Patients see it when choosing a provider." : "Photo removed.", "success");
+        } catch (error) {
+            console.error("Photo error:", error);
+            toast(photoErrorMessage(error), "error");
+            button.disabled = false;
+        }
     });
 
     $("saveProfileBtn").addEventListener("click", async () => {
@@ -1384,6 +1442,8 @@ document.addEventListener("DOMContentLoaded", () => {
         $("staffContent").hidden = false;
 
         mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")]);
+
+        myPhoto = await loadAvatar(user.uid);
 
         renderWeekEditor();
         renderDaysOff();

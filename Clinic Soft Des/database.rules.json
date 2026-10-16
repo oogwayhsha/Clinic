@@ -103,6 +103,16 @@
       }
     },
 
+    // Profile photos (small JPEGs). Staff photos: every signed-in user
+    // (patients pick a provider). Patient photos: themselves, staff, admin.
+    "avatars": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('staff').child(auth.uid).child('active').val() === true || root.child('staff').child($uid).exists())",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2')",
+        ".validate": "newData.hasChildren(['photo']) && newData.child('photo').isString() && newData.child('photo').val().beginsWith('data:image/jpeg;base64,') && newData.child('photo').val().length < 200000"
+      }
+    },
+
     // Health information: the patient and clinic staff only
     "medicalHistory": {
       "$uid": {
