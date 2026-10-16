@@ -401,3 +401,78 @@ export function mountBell(uid, containers) {
 
     render();
 }
+
+/* ===== Profile dropdown (Log Out sa loob ng Profile menu) ===== */
+(function () {
+    var USER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+    var CHEVRON = '<svg class="pm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+
+    function ensureLabel(el, text) {
+        if (!el.textContent.trim()) {
+            var s = document.createElement("span");
+            s.textContent = text;
+            el.appendChild(s);
+        }
+    }
+
+    function build(logout, profile, isMobile) {
+        var menu = document.createElement("div");
+        menu.className = "profile-menu" + (isMobile ? " is-mobile" : "");
+
+        var trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "profile-menu-trigger";
+        trigger.setAttribute("aria-haspopup", "menu");
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.setAttribute("aria-label", profile ? "Profile menu" : "Account menu");
+        trigger.innerHTML = USER_ICON + '<span class="pm-label">' +
+            (profile ? "Profile" : "Account") + "</span>" + CHEVRON;
+
+        var dropdown = document.createElement("div");
+        dropdown.className = "profile-dropdown";
+        dropdown.setAttribute("role", "menu");
+
+        var anchor = logout;
+        if (profile && (logout.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_PRECEDING)) {
+            anchor = profile;
+        }
+        anchor.parentNode.insertBefore(menu, anchor);
+        menu.appendChild(trigger);
+        menu.appendChild(dropdown);
+
+        if (profile) { ensureLabel(profile, "My Profile"); dropdown.appendChild(profile); }
+        ensureLabel(logout, "Log Out");
+        logout.classList.add("pm-logout");
+        dropdown.appendChild(logout);
+
+        function setOpen(open) {
+            menu.classList.toggle("open", open);
+            trigger.setAttribute("aria-expanded", String(open));
+        }
+        trigger.addEventListener("click", function (e) {
+            e.stopPropagation();
+            setOpen(!menu.classList.contains("open"));
+        });
+        document.addEventListener("click", function (e) {
+            if (!menu.contains(e.target)) setOpen(false);
+        });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") { setOpen(false); trigger.focus(); }
+        });
+    }
+
+    function init() {
+        var dLogout = document.getElementById("logoutBtn") || document.getElementById("desktopLogoutBtn");
+        var dProfile = document.getElementById("deskProfileBtn") ||
+            document.querySelector(".desktop-nav .nav-profile-btn");
+        if (dLogout) build(dLogout, dProfile, false);
+
+        var mLogout = document.getElementById("mobileLogoutBtn");
+        var mProfile = document.getElementById("profileBtn") ||
+            document.querySelector('.mobile-header-btns [aria-label="My Profile"]');
+        if (mLogout) build(mLogout, mProfile, true);
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
+})();
