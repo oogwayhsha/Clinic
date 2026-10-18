@@ -42,7 +42,17 @@
 }
 
 /* ----- desktop nav ----- */
-.topbar .desktop-nav { margin-left: auto; display: flex; align-items: center; gap: 28px; }
+.topbar .desktop-nav {
+    /* flex and justify-content are set explicitly: dashboard.css once
+       stretched this nav across the bar and centred it, which left the
+       bell and account menu stranded mid-header. */
+    flex: 0 1 auto;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 28px;
+}
 .topbar .desktop-nav ul { display: contents; list-style: none; margin: 0; padding: 0; }
 .topbar .desktop-nav a {
     position: relative;

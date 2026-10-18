@@ -411,6 +411,8 @@ export function mountBell(uid, containers) {
     var USER_ICON = '<svg class="pm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
     var CHEVRON = '<svg class="pm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
+    var LOGOUT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
+
     function ensureLabel(el, text) {
         if (!el.textContent.trim()) {
             var s = document.createElement("span");
@@ -455,6 +457,8 @@ export function mountBell(uid, containers) {
 
         if (profile) { ensureLabel(profile, "My Profile"); dropdown.appendChild(profile); }
         ensureLabel(logout, "Log Out");
+        // Profile has an icon in the menu, so Log Out gets one too
+        if (!logout.querySelector("svg")) logout.insertAdjacentHTML("afterbegin", LOGOUT_ICON);
         logout.classList.add("pm-logout");
         dropdown.appendChild(logout);
 
