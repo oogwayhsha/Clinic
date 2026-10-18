@@ -91,6 +91,30 @@
     text-align: left; white-space: nowrap; cursor: pointer;
 }
 .profile-dropdown > a[hidden], .profile-dropdown > button[hidden] { display: none !important; }
+
+/* Who is signed in, at the top of the account menu */
+.pm-whoami {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 10px 12px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #eef1f7;
+}
+.pm-whoami-avatar {
+    width: 38px; height: 38px; flex-shrink: 0;
+    display: grid; place-items: center; overflow: hidden;
+    border-radius: 50%;
+    background: #eff6ff; color: #2563eb;
+    font-size: 13px; font-weight: 800;
+}
+.pm-whoami-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pm-whoami-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pm-whoami-text strong {
+    color: #0b1c4e; font-size: 13.5px; font-weight: 700; line-height: 1.2;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pm-whoami-text small { color: #718096; font-size: 11.5px; font-weight: 600; }
+.profile-dropdown { min-width: 230px; }
+
 .profile-dropdown > a::after, .profile-dropdown > button::after { display: none !important; }
 .profile-dropdown > a:hover, .profile-dropdown > button:hover { background: #f1f4fa !important; }
 .profile-dropdown svg { width: 16px !important; height: 16px !important; flex-shrink: 0; }

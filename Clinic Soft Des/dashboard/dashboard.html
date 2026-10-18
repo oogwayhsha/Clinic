@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>University Clinic Appointment System</title>
+    <title>Home | University Clinic</title>
     <!-- Google Fonts: Outfit (Primary & Headings) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,24 +18,25 @@
 <body>
     <div class="dashboard-wrapper">
         <!-- Main Scrollable Content Container -->
-        <div class="dashboard-container">
+        <!-- The header sits outside .dashboard-container: that container
+             carries up to 80px of side padding, which stopped the header
+             reaching the edges the way it does on every other page. -->
+        <header class="topbar">
 
-            <!-- Top Header -->
-            <header class="topbar">
+            <a href="dashboard.html" class="brand" aria-label="University Clinic home">
+                <img src="../shared/nufvlogo.png" alt="University Logo">
 
-                <a href="dashboard.html" class="brand" aria-label="University Clinic home">
-                    <img src="../shared/nufvlogo.png" alt="University Logo">
-
-                    <div>
-                        <h1>University Clinic</h1>
-                        <span id="portalLabel">Student Portal</span>
-                    </div>
-                </a>
+                <div>
+                    <h1>University Clinic</h1>
+                    <span id="portalLabel">Student Portal</span>
+                </div>
+            </a>
 
 
                 <nav class="desktop-nav">
 
                     <a href="#" class="active">Home</a>
+                    <a href="../student/st-appointment.html" id="navAppointments">Appointments</a>
                     <a href="#services">Services</a>
                     <a href="#schedule">Schedule</a>
                     <a href="#clinic-info">Clinic Information</a>
@@ -52,26 +53,30 @@
                 </nav>
 
 
-                <!-- Mobile header buttons -->
-                <div class="mobile-header-btns">
+            <!-- Mobile header buttons -->
+            <div class="mobile-header-btns">
 
-                    <div class="bell-slot" id="bellSlotMobile"></div>
+                <div class="bell-slot" id="bellSlotMobile"></div>
 
-                    <a href="../student/student-profile.html" class="mobile-icon-btn" id="profileBtn" aria-label="My Profile" title="Profile">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    </a>
+                <a href="../student/student-profile.html" class="mobile-icon-btn" id="profileBtn" aria-label="My Profile" title="Profile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </a>
 
-                    <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
+                <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
 
-                </div>
+            </div>
 
-            </header>
+        </header>
 
+        <div class="dashboard-container">
+
+            <!-- Top Header -->
             <!-- Mobile section tabs (shown on phones/tablets only) -->
             <nav class="page-tabs" aria-label="Sections">
                 <a href="#" class="active">Home</a>
+                <a href="../student/st-appointment.html" id="tabAppointments">Appointments</a>
                 <a href="#services">Services</a>
                 <a href="#schedule">Schedule</a>
                 <a href="#clinic-info">Clinic Info</a>

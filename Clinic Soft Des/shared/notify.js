@@ -8,6 +8,7 @@ import { auth, db } from "../firebase/firebase.js";
 
 import {
     ref,
+    get,
     push,
     update,
     query,
@@ -18,8 +19,8 @@ import {
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 
-import { loadAvatar } from "./avatar.js";
-import { EMAILJS, CLINIC_NAME } from "./config.js";
+import { loadAvatar, avatarInner } from "./avatar.js";
+import { EMAILJS, CLINIC_NAME, ADMIN_UID } from "./config.js";
 import { escapeHtml } from "./clinic.js";
 
 // Notification links are stored relative to the site root ("student/st-appointment.html?...")
@@ -436,6 +437,14 @@ export function mountBell(uid, containers) {
         dropdown.className = "profile-dropdown";
         dropdown.setAttribute("role", "menu");
 
+        // Who is signed in. Without it the menu was two links in a box.
+        var who = document.createElement("div");
+        who.className = "pm-whoami";
+        who.innerHTML = '<span class="pm-whoami-avatar"></span>' +
+            '<span class="pm-whoami-text"><strong></strong><small></small></span>';
+        dropdown.appendChild(who);
+        whoamis.push(who);
+
         var anchor = logout;
         if (profile && (logout.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_PRECEDING)) {
             anchor = profile;
@@ -466,9 +475,43 @@ export function mountBell(uid, containers) {
     }
 
     var triggers = [];
+    var whoamis = [];
 
     // Swap the plain user icon for the person's own photo, so the header
     // shows who is signed in. Without a photo the icon is left alone.
+    // Their name and role, looked up where their profile actually lives.
+    function loadWho(user) {
+        if (user.uid === ADMIN_UID) {
+            return Promise.resolve({ name: user.email || "Admin", role: "Admin" });
+        }
+
+        var folders = [["staff", "Clinic Staff"], ["students", "Student"], ["employees", "Employee"]];
+
+        return folders.reduce(function (chain, pair) {
+            return chain.then(function (found) {
+                if (found) return found;
+
+                return get(ref(db, pair[0] + "/" + user.uid))
+                    .then(function (snap) {
+                        if (!snap.exists()) return null;
+                        var v = snap.val() || {};
+                        return { name: v.fullName || v.name || user.email, role: pair[1] };
+                    })
+                    .catch(function () { return null; });   // rules may refuse; try the next
+            });
+        }, Promise.resolve(null)).then(function (found) {
+            return found || { name: user.displayName || user.email || "Signed in", role: "" };
+        });
+    }
+
+    function showWho(info, photo) {
+        whoamis.forEach(function (box) {
+            box.querySelector(".pm-whoami-avatar").innerHTML = avatarInner(photo, info.name);
+            box.querySelector("strong").textContent = info.name;
+            box.querySelector("small").textContent = info.role;
+        });
+    }
+
     function showOwnPhoto(photo) {
         triggers.forEach(function (trigger) {
             var icon = trigger.querySelector(".pm-icon");
@@ -496,9 +539,13 @@ export function mountBell(uid, containers) {
         onAuthStateChanged(auth, function (user) {
             if (!user) return;
 
-            loadAvatar(user.uid)
-                .then(function (photo) { if (photo) showOwnPhoto(photo); })
-                .catch(function (error) { console.warn("Could not load header photo:", error); });
+            Promise.all([loadAvatar(user.uid), loadWho(user)])
+                .then(function (results) {
+                    var photo = results[0];
+                    if (photo) showOwnPhoto(photo);
+                    showWho(results[1], photo);
+                })
+                .catch(function (error) { console.warn("Could not load the account menu:", error); });
         });
     }
 

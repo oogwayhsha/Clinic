@@ -115,6 +115,18 @@ function initDashboard() {
         admin: "Admin Portal"
     };
 
+    // The Appointments link in the header goes to this role's own page.
+    function updateNavLinks() {
+        const nav = document.getElementById("navAppointments");
+        if (!nav) return;
+
+        if (currentRole === "admin") {
+            nav.setAttribute("href", ADMIN_PAGE);
+        } else {
+            nav.setAttribute("href", appointmentPage());
+        }
+    }
+
     function updatePortalLabel() {
         const label = document.getElementById("portalLabel");
         if (label) label.textContent = PORTAL_LABELS[currentRole] || PORTAL_LABELS.student;
@@ -199,6 +211,7 @@ function initDashboard() {
             updateServiceLinks();
             updateProfileButtons();
             updatePortalLabel();
+            updateNavLinks();
             return;
         }
 
@@ -276,6 +289,7 @@ function initDashboard() {
         updateServiceLinks();
         updateProfileButtons();
         updatePortalLabel();
+        updateNavLinks();
     });
 
 
