@@ -427,9 +427,8 @@ export function mountBell(uid, containers) {
         trigger.className = "profile-menu-trigger";
         trigger.setAttribute("aria-haspopup", "menu");
         trigger.setAttribute("aria-expanded", "false");
-        trigger.setAttribute("aria-label", profile ? "Profile menu" : "Account menu");
-        trigger.innerHTML = USER_ICON + '<span class="pm-label">' +
-            (profile ? "Profile" : "Account") + "</span>" + CHEVRON;
+        trigger.setAttribute("aria-label", "Account menu");
+        trigger.innerHTML = USER_ICON + '<span class="pm-label">Account</span>' + CHEVRON;
 
         triggers.push(trigger);
 
@@ -485,13 +484,11 @@ export function mountBell(uid, containers) {
 
     function init() {
         var dLogout = document.getElementById("logoutBtn") || document.getElementById("desktopLogoutBtn");
-        var dProfile = document.getElementById("deskProfileBtn") ||
-            document.querySelector(".desktop-nav .nav-profile-btn");
+        var dProfile = document.getElementById("deskProfileBtn");
         if (dLogout) build(dLogout, dProfile, false);
 
         var mLogout = document.getElementById("mobileLogoutBtn");
-        var mProfile = document.getElementById("profileBtn") ||
-            document.querySelector('.mobile-header-btns [aria-label="My Profile"]');
+        var mProfile = document.getElementById("profileBtn");
         if (mLogout) build(mLogout, mProfile, true);
 
         if (triggers.length === 0) return;

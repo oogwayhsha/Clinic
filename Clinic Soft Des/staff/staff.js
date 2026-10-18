@@ -176,6 +176,19 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tab) showTab(tab.dataset.tab);
     });
 
+    // "My Profile" lives in the tab row, but every other role reaches
+    // their profile from the header, so the header link opens that tab.
+    ["deskProfileBtn", "profileBtn"].forEach((id) => {
+        const link = document.getElementById(id);
+        if (!link) return;
+
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            showTab("profile");
+            document.querySelector(".staff-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+
     document.querySelectorAll("[data-go]").forEach((card) => {
         card.addEventListener("click", () => showTab(card.dataset.go));
     });

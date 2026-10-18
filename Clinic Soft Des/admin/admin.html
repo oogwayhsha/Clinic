@@ -13,7 +13,9 @@
     <!-- Shared theme first, then the admin additions -->
     <link rel="stylesheet" href="../appointment/appointments.css">
     <link rel="stylesheet" href="../shared/notify.css">
+    <link rel="stylesheet" href="../shared/panels.css">
     <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="../shared/header.css">
 </head>
 
 <body>
@@ -22,7 +24,7 @@
     <header class="topbar">
 
         <a href="../dashboard/dashboard.html" class="brand" aria-label="University Clinic home">
-            <img src="nufvlogo.png" alt="University Logo">
+            <img src="../shared/nufvlogo.png" alt="University Logo">
 
             <div>
                 <h1>University Clinic</h1>
@@ -37,6 +39,8 @@
 
             <a href="admin.html" class="active">Appointments</a>
 
+            <div class="bell-slot" id="bellSlotDesktop"></div>
+
             <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
 
         </nav>
@@ -44,6 +48,8 @@
 
         <!-- Mobile header buttons -->
         <div class="mobile-header-btns">
+
+            <div class="bell-slot" id="bellSlotMobile"></div>
 
             <a href="../dashboard/dashboard.html" class="mobile-icon-btn" aria-label="Home" title="Home">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

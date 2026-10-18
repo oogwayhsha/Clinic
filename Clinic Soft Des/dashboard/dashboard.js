@@ -109,6 +109,17 @@ function initDashboard() {
         });
     }
 
+    const PORTAL_LABELS = {
+        student: "Student Portal",
+        employee: "Employee Portal",
+        admin: "Admin Portal"
+    };
+
+    function updatePortalLabel() {
+        const label = document.getElementById("portalLabel");
+        if (label) label.textContent = PORTAL_LABELS[currentRole] || PORTAL_LABELS.student;
+    }
+
     // The admin has no profile page, so hide the profile buttons for them
     function updateProfileButtons() {
         [deskProfileBtn, profileBtn].forEach((btn) => {
@@ -187,6 +198,7 @@ function initDashboard() {
 
             updateServiceLinks();
             updateProfileButtons();
+            updatePortalLabel();
             return;
         }
 
@@ -263,6 +275,7 @@ function initDashboard() {
 
         updateServiceLinks();
         updateProfileButtons();
+        updatePortalLabel();
     });
 
 

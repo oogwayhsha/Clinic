@@ -12,6 +12,7 @@
 
     <link rel="stylesheet" href="../appointment/appointments.css">
     <link rel="stylesheet" href="../shared/notify.css">
+    <link rel="stylesheet" href="../shared/header.css">
 </head>
 
 <body data-role="student">
@@ -20,7 +21,7 @@
     <header class="topbar">
 
         <a href="../dashboard/dashboard.html" class="brand" aria-label="University Clinic home">
-            <img src="nufvlogo.png" alt="University Logo">
+            <img src="../shared/nufvlogo.png" alt="University Logo">
 
             <div>
                 <h1>University Clinic</h1>
@@ -35,7 +36,7 @@
 
             <a href="st-appointment.html" class="active">Appointments</a>
 
-            <a href="student-profile.html" class="nav-profile-btn">
+            <a href="student-profile.html" class="nav-profile-btn" id="deskProfileBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -62,7 +63,7 @@
                 </svg>
             </a>
 
-            <a href="student-profile.html" class="mobile-icon-btn" aria-label="My Profile" title="Profile">
+            <a href="student-profile.html" class="mobile-icon-btn" id="profileBtn" aria-label="My Profile" title="Profile">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>

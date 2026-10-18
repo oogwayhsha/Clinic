@@ -48,6 +48,7 @@ import {
 } from "../shared/clinic.js";
 
 import { loadAvatars, avatarInner } from "../shared/avatar.js";
+import { mountBell } from "../shared/notify.js";
 
 import {
     approveAppointment,
@@ -1256,6 +1257,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         adminUser = user;
         adminName = user.displayName || user.email || "Admin";
+
+        mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")]);
 
         $("accessCheck").hidden = true;
         $("adminContent").hidden = false;

@@ -1,0 +1,128 @@
+/* ============================================================
+   THE APP HEADER
+   One header for every page: dashboard, appointments, profiles,
+   staff and admin. Each page used to style its own, which is how
+   they drifted apart (different brand text, different markup, a
+   profile link in three different places).
+
+   Self-contained on purpose: the colours are written out rather
+   than taken from a page's variables, because appointments.css
+   and dashboard.css define different ones (--navy vs
+   --primary-blue). Load this LAST so it wins.
+   ============================================================ */
+
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    min-height: 88px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    padding: 0 40px;
+    background: #ffffff;
+    border-bottom: 1px solid #e7ebf2;
+}
+
+/* ----- brand ----- */
+.topbar .brand { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.topbar .brand img { width: 48px; height: 48px; object-fit: contain; }
+.topbar .brand h1 {
+    margin: 0;
+    color: #0b1c4e;
+    font-size: 17px; font-weight: 800; letter-spacing: .04em; line-height: 1.2;
+}
+.topbar .brand span {
+    display: block;
+    margin-top: 3px;
+    color: #c87c28;
+    font-size: 10px; font-weight: 700; letter-spacing: .15em;
+}
+
+/* ----- desktop nav ----- */
+.topbar .desktop-nav { margin-left: auto; display: flex; align-items: center; gap: 28px; }
+.topbar .desktop-nav ul { display: contents; list-style: none; margin: 0; padding: 0; }
+.topbar .desktop-nav a {
+    position: relative;
+    padding: 8px 2px;
+    color: #59657a;
+    font-size: 14px; font-weight: 500;
+    transition: .2s ease;
+}
+.topbar .desktop-nav a:hover,
+.topbar .desktop-nav a.active { color: #0b1c4e; }
+.topbar .desktop-nav a.active::after {
+    content: "";
+    position: absolute; left: 0; bottom: 0;
+    width: 100%; height: 2px;
+    background: #c87c28; border-radius: 2px;
+}
+
+/* The profile link is a bordered pill, never an underlined nav link */
+.topbar .desktop-nav a.nav-profile-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 18px;
+    border: 2px solid #0b1c4e; border-radius: 10px;
+    color: #0b1c4e; font-weight: 600;
+}
+.topbar .desktop-nav a.nav-profile-btn::after { display: none; }
+.topbar .desktop-nav a.nav-profile-btn svg { width: 16px; height: 16px; }
+.topbar .desktop-nav a.nav-profile-btn:hover { background: #f2f5fb; }
+
+.topbar .logout-btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: 10px 16px;
+    border: 1px solid #dfe4ed; border-radius: 10px;
+    background: #ffffff; color: #0b1c4e;
+    font-size: 13px; font-weight: 600;
+    transition: .2s ease;
+}
+.topbar .logout-btn:hover { background: #0b1c4e; border-color: #0b1c4e; color: #ffffff; }
+
+/* ----- mobile buttons ----- */
+.topbar .mobile-header-btns { display: none; margin-left: auto; align-items: center; gap: 10px; }
+.topbar .mobile-icon-btn {
+    width: 42px; height: 42px;
+    display: grid; place-items: center;
+    border: 1px solid #e7ebf2; border-radius: 50%;
+    background: #ffffff; color: #0b1c4e;
+    box-shadow: 0 6px 14px rgba(11, 28, 78, .08);
+    transition: .2s ease;
+}
+.topbar .mobile-icon-btn svg { width: 20px; height: 20px; }
+.topbar .mobile-icon-btn:hover { transform: scale(1.05); }
+.topbar .mobile-icon-btn.logout { color: #ef4444; }
+.topbar .mobile-icon-btn.logout:hover { background: #fef2f2; }
+
+/* ----- breakpoints ----- */
+@media (max-width: 1000px) {
+    .topbar { padding: 0 28px; }
+    .topbar .desktop-nav { gap: 18px; }
+    .topbar .desktop-nav a { font-size: 13px; }
+}
+
+@media (max-width: 800px) {
+    .topbar { min-height: 76px; padding: 0 20px; }
+    .topbar .brand img { width: 42px; height: 42px; }
+    .topbar .brand h1 { font-size: 14px; }
+    .topbar .brand span { font-size: 8px; }
+    .topbar .desktop-nav { display: none; }
+    .topbar .mobile-header-btns { display: flex; }
+}
+
+@media (max-width: 560px) {
+    .topbar { padding: 0 14px; gap: 10px; }
+    .topbar .brand { gap: 9px; }
+    .topbar .brand img { width: 38px; height: 38px; }
+    .topbar .brand h1 { font-size: 13px; }
+    .topbar .brand span { font-size: 7px; letter-spacing: .11em; }
+    .topbar .mobile-header-btns { gap: 6px; }
+    .topbar .mobile-icon-btn { width: 38px; height: 38px; }
+    .topbar .mobile-icon-btn svg { width: 18px; height: 18px; }
+}
+
+@media (max-width: 380px) {
+    .topbar .brand span { display: none; }
+}
