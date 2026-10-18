@@ -1449,7 +1449,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         $("greeting").textContent = `${greetingWord()}, ${staffDisplayName(profile)}`;
         $("roleLabel").textContent = `${staffTypeLabel(profile.type).toUpperCase()} DASHBOARD`;
-        document.title = `${staffTypeLabel(profile.type)} Dashboard | University Clinic`;
+        document.title = `${staffTypeLabel(profile.type)} Dashboard | NUFV CARES`;
 
         $("accessCheck").hidden = true;
         $("staffContent").hidden = false;
