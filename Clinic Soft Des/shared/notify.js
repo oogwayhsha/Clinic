@@ -16,6 +16,9 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+import { loadAvatar } from "./avatar.js";
 import { EMAILJS, CLINIC_NAME } from "./config.js";
 import { escapeHtml } from "./clinic.js";
 
@@ -404,7 +407,7 @@ export function mountBell(uid, containers) {
 
 /* ===== Profile dropdown (Log Out sa loob ng Profile menu) ===== */
 (function () {
-    var USER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+    var USER_ICON = '<svg class="pm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
     var CHEVRON = '<svg class="pm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
     function ensureLabel(el, text) {
@@ -427,6 +430,8 @@ export function mountBell(uid, containers) {
         trigger.setAttribute("aria-label", profile ? "Profile menu" : "Account menu");
         trigger.innerHTML = USER_ICON + '<span class="pm-label">' +
             (profile ? "Profile" : "Account") + "</span>" + CHEVRON;
+
+        triggers.push(trigger);
 
         var dropdown = document.createElement("div");
         dropdown.className = "profile-dropdown";
@@ -461,6 +466,23 @@ export function mountBell(uid, containers) {
         });
     }
 
+    var triggers = [];
+
+    // Swap the plain user icon for the person's own photo, so the header
+    // shows who is signed in. Without a photo the icon is left alone.
+    function showOwnPhoto(photo) {
+        triggers.forEach(function (trigger) {
+            var icon = trigger.querySelector(".pm-icon");
+            if (!icon) return;
+
+            var img = document.createElement("img");
+            img.className = "pm-avatar";
+            img.src = photo;
+            img.alt = "";
+            icon.replaceWith(img);
+        });
+    }
+
     function init() {
         var dLogout = document.getElementById("logoutBtn") || document.getElementById("desktopLogoutBtn");
         var dProfile = document.getElementById("deskProfileBtn") ||
@@ -471,6 +493,16 @@ export function mountBell(uid, containers) {
         var mProfile = document.getElementById("profileBtn") ||
             document.querySelector('.mobile-header-btns [aria-label="My Profile"]');
         if (mLogout) build(mLogout, mProfile, true);
+
+        if (triggers.length === 0) return;
+
+        onAuthStateChanged(auth, function (user) {
+            if (!user) return;
+
+            loadAvatar(user.uid)
+                .then(function (photo) { if (photo) showOwnPhoto(photo); })
+                .catch(function (error) { console.warn("Could not load header photo:", error); });
+        });
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

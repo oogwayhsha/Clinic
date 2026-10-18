@@ -59,6 +59,16 @@
 
 .profile-menu.is-mobile .profile-menu-trigger { width: 40px; padding: 0; border-radius: 50%; }
 .profile-menu.is-mobile .profile-menu-trigger svg:not(.pm-chevron) { width: 18px; height: 18px; }
+
+/* The uploaded profile photo, when there is one (see shared/avatar.js).
+   Without a photo the trigger keeps its plain user icon. */
+.profile-menu-trigger .pm-avatar {
+    width: 24px; height: 24px; flex-shrink: 0;
+    border-radius: 50%; object-fit: cover; display: block;
+    background: #eff6ff;
+}
+.profile-menu.is-mobile .profile-menu-trigger .pm-avatar { width: 100%; height: 100%; }
+
 .profile-menu.is-mobile .pm-chevron,
 .profile-menu.is-mobile .pm-label { display: none; }
 
