@@ -18,7 +18,12 @@
     width: 100%;
     min-height: 88px;
     box-sizing: border-box;
-    display: flex;
+    /* Brand | links | bell + account. The two outer columns share the
+       leftover space equally, so the links sit in the true middle of the
+       bar however wide the brand or the buttons are. max-content stops
+       either side from being squeezed smaller than what it holds. */
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
     align-items: center;
     gap: 30px;
     padding: 0 40px;
@@ -42,16 +47,13 @@
 }
 
 /* ----- desktop nav ----- */
+.topbar .brand { justify-self: start; }
 .topbar .desktop-nav {
-    /* flex and justify-content are set explicitly: dashboard.css once
-       stretched this nav across the bar and centred it, which left the
-       bell and account menu stranded mid-header. */
-    flex: 0 1 auto;
-    margin-left: auto;
+    justify-self: center;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 28px;
+    margin: 0;
 }
 .topbar .desktop-nav ul { display: contents; list-style: none; margin: 0; padding: 0; }
 .topbar .desktop-nav a {
@@ -70,16 +72,24 @@
     background: #c87c28; border-radius: 2px;
 }
 
+/* ----- bell + account menu ----- */
+.topbar .topbar-actions {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 /* The profile link is a bordered pill, never an underlined nav link */
-.topbar .desktop-nav a.nav-profile-btn {
+.topbar a.nav-profile-btn {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 9px 18px;
     border: 2px solid #0b1c4e; border-radius: 10px;
     color: #0b1c4e; font-weight: 600;
 }
-.topbar .desktop-nav a.nav-profile-btn::after { display: none; }
-.topbar .desktop-nav a.nav-profile-btn svg { width: 16px; height: 16px; }
-.topbar .desktop-nav a.nav-profile-btn:hover { background: #f2f5fb; }
+.topbar a.nav-profile-btn::after { display: none; }
+.topbar a.nav-profile-btn svg { width: 16px; height: 16px; }
+.topbar a.nav-profile-btn:hover { background: #f2f5fb; }
 
 .topbar .logout-btn {
     display: flex; align-items: center; justify-content: center;
@@ -108,7 +118,7 @@
 
 /* ----- breakpoints ----- */
 @media (max-width: 1000px) {
-    .topbar { padding: 0 28px; }
+    .topbar { padding: 0 28px; gap: 18px; }
     .topbar .desktop-nav { gap: 18px; }
     .topbar .desktop-nav a { font-size: 13px; }
 }
@@ -118,7 +128,9 @@
     .topbar .brand img { width: 42px; height: 42px; }
     .topbar .brand h1 { font-size: 14px; }
     .topbar .brand span { font-size: 8px; }
-    .topbar .desktop-nav { display: none; }
+    .topbar { display: flex; }
+    .topbar .desktop-nav,
+    .topbar .topbar-actions { display: none; }
     .topbar .mobile-header-btns { display: flex; }
 }
 
