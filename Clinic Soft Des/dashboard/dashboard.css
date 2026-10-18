@@ -26,20 +26,8 @@ body { font-family: 'Outfit', sans-serif; background-color: #f1f5f9; color: var(
 .dashboard-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
 /* Header Brand & Profile */
-.header { display: flex; justify-content: space-between; align-items: center; padding: 24px 24px 12px 24px; z-index: 10; }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand-logo { width: 46px; height: auto; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(11, 26, 74, 0.15)); }
-.brand-text h1 { font-size: 14px; font-weight: 800; letter-spacing: 0.5px; color: var(--primary-blue); line-height: 1.1; }
-.brand-text p { font-size: 9.5px; font-weight: 500; letter-spacing: 1.5px; color: var(--text-muted); margin-top: 1px; }
 .mobile-header-btns { display: flex; align-items: center; gap: 10px; }
-.mobile-logout-btn { width: 42px; height: 42px; border-radius: 50%; background-color: var(--white); border: none; display: flex; justify-content: center; align-items: center; color: #ef4444; text-decoration: none; box-shadow: var(--shadow-md); transition: var(--transition); }
-.mobile-logout-btn:hover { transform: scale(1.05); background-color: #fef2f2; box-shadow: 0 6px 12px rgba(239, 68, 68, 0.15); }
-.mobile-logout-btn:active { transform: scale(0.95); }
-.mobile-logout-btn svg { width: 20px; height: 20px; }
-.profile-btn { width: 42px; height: 42px; border-radius: 50%; background-color: var(--white); border: none; display: flex; justify-content: center; align-items: center; color: var(--primary-blue); cursor: pointer; text-decoration: none; box-shadow: var(--shadow-md); transition: var(--transition); }
-.profile-btn:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(11, 26, 74, 0.12); }
-.profile-btn:active { transform: scale(0.95); }
-.profile-btn svg { width: 20px; height: 20px; }
 
 /* Hero / Welcome Section */
 .hero-section { position: relative; min-height: 230px; display: flex; align-items: flex-start; margin-bottom: 16px; width: 100%; }
@@ -126,36 +114,22 @@ body { font-family: 'Outfit', sans-serif; background-color: #f1f5f9; color: var(
 .service-card:hover .service-link svg { transform: translateX(4px); }
 
 /* Desktop & Mobile Display States (Default Mobile-First Hidden Elements) */
-.desktop-nav, .desktop-logout-btn, .desktop-header-actions, .welcome-badge, .desktop-hero-actions, .desktop-wave, .desktop-priority-badge, .feature-desc { display: none; }
+.desktop-nav, .welcome-badge, .desktop-hero-actions, .desktop-wave, .desktop-priority-badge, .feature-desc { display: none; }
 
 /* Desktop / Tablet Responsive Adjustments */
 @media (min-width: 769px) {
     body { width: 100%; min-width: 100%; align-items: stretch; justify-content: flex-start; background-color: #f8fafc; padding: 0; }
     .dashboard-wrapper { width: 100vw; max-width: none; min-height: 100vh; height: 100vh; max-height: none; border: none; border-radius: 0; box-shadow: none; margin: 0; }
     .dashboard-container { width: 100%; min-height: 100vh; padding: 24px clamp(24px, 5vw, 80px) 48px; background: #ffffff; }
-    .header { position: relative; padding: 12px 0 24px 0; margin-bottom: 24px; border-bottom: none; display: flex; justify-content: space-between; align-items: center; }
-    .brand-logo { width: 60px; }
-    .brand-text h1 { font-size: 18px; }
-    .brand-text p { font-size: 11px; }
 
     /* Desktop Nav and Login */
     .desktop-nav { display: block; }
-    .desktop-nav ul { display: flex; gap: 32px; list-style: none; }
     .desktop-nav a { text-decoration: none; color: #475569; font-weight: 500; font-size: 14px; transition: var(--transition); position: relative; padding: 6px 0; }
     .desktop-nav a:hover, .desktop-nav a.active { color: var(--primary-blue); }
     .desktop-nav a.active::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background-color: var(--accent-gold); border-radius: 2px; }
 
     /* Desktop header actions group (Profile + Log Out) */
-    .desktop-header-actions { display: flex; align-items: center; gap: 12px; }
-    .desktop-profile-btn { display: flex; align-items: center; gap: 8px; background-color: var(--white); color: var(--primary-blue); border: 2px solid var(--primary-blue); padding: 10px 20px; border-radius: 8px; font-family: inherit; font-weight: 600; font-size: 14px; text-decoration: none; cursor: pointer; transition: var(--transition); }
-    .desktop-profile-btn:hover { background-color: #f8fafc; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(11, 26, 74, 0.1); }
-    .desktop-profile-btn:active { transform: translateY(0); }
-    .desktop-profile-btn svg { width: 16px; height: 16px; }
-    .desktop-logout-btn { display: flex; align-items: center; gap: 8px; background-color: var(--primary-blue); color: var(--white); text-decoration: none; border: 2px solid var(--primary-blue); padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: var(--transition); }
-    .desktop-logout-btn:hover { background-color: var(--primary-blue-hover); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(11, 26, 74, 0.15); }
-    .desktop-logout-btn svg { width: 16px; height: 16px; }
     .mobile-header-btns { display: none; }
-    .profile-btn { display: flex; }
 
     /* Hero Layout Row */
     .hero-section { display: flex; flex-direction: row; justify-content: space-between; align-items: stretch; min-height: auto; height: 480px; margin-bottom: 0; gap: 0; position: relative; background-color: transparent; }
@@ -438,31 +412,11 @@ footer p { color: var(--muted); font-size: 12px; }
 }
 @media (max-width: 380px) { .brand span { display: none; } }
 
-/* NAVIGATION POSITION FIX */
-@media (min-width: 769px) {
-    .header { display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box; gap: 32px; }
-    .brand { flex: 0 0 auto; }
-    .desktop-nav { display: flex; align-items: center; justify-content: center; flex: 1 1 auto; margin-left: 0; margin-right: 0; }
-    .desktop-nav ul { display: flex; align-items: center; justify-content: center; gap: 28px; margin: 0; padding: 0; list-style: none; }
-    .desktop-nav li { display: flex; align-items: center; margin: 0; padding: 0; }
-    .desktop-nav a { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 4px; white-space: nowrap; box-sizing: border-box; }
-    .desktop-header-actions { display: flex; align-items: center; justify-content: flex-end; flex: 0 0 auto; gap: 10px; margin-left: 0; }
-    .desktop-profile-btn, .logout-btn, .desktop-nav a.nav-profile-btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; box-sizing: border-box; }
-    .desktop-profile-btn { height: 40px; padding: 0 16px; }
-    .logout-btn { height: 40px; padding: 0 16px; }
-}
-@media (min-width: 769px) and (max-width: 1100px) {
-    .header { gap: 18px; }
-    .desktop-nav ul { gap: 16px; }
-    .desktop-nav a { font-size: 13px; }
-    .desktop-profile-btn, .logout-btn, .desktop-nav a.nav-profile-btn { padding-left: 12px; padding-right: 12px; }
-}
-
 /* ===========================================================
    UNIFIED RESPONSIVE LAYOUT (one page, mobile + desktop)
    Appended last so it overrides the phone-frame rules above.
    =========================================================== */
-:root { --header-h: 82px; --page-pad: clamp(24px, 5vw, 80px); }
+:root { --page-pad: clamp(24px, 5vw, 80px); }
 
 html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-h) + 56px); }
 
@@ -474,124 +428,58 @@ body { display: block; background: #fff; min-height: 100vh; }
 /* Orphan fix: 3 service cards in a 2-column grid */
 .service-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
-/* MOBILE / TABLET (up to 768px) */
-@media (max-width: 768px) {
-    .desktop-nav, .desktop-header-actions { display: none; }
+/* MOBILE / TABLET (up to 800px, the same breakpoint as shared/header.css;
+   at 768 there was a band, 769-800px, with no navigation at all) */
+@media (max-width: 800px) {
+    .desktop-nav { display: none; }
     .mobile-header-btns { display: flex; }
     .page-tabs { display: flex; position: sticky; top: var(--header-h); z-index: 900; }
     .footer { display: flex; }
 }
 
-/* DESKTOP (769px and up) */
-@media (min-width: 769px) {
-    .desktop-nav, .desktop-header-actions { display: flex; }
+/* DESKTOP (801px and up) */
+@media (min-width: 801px) {
+    .desktop-nav { display: flex; }
     .mobile-header-btns, .page-tabs, .footer { display: none; }
     .service-card:last-child:nth-child(odd) { grid-column: auto; }
 
     /* Full-width sticky header that still lines up with the content */
     .dashboard-container { padding-top: 0; }
-    .header { margin: 0 calc(-1 * var(--page-pad)) 24px; padding: 16px var(--page-pad); }
 
     /* Schedule / Clinic Info align with the hero and services edges */
     .dashboard-container .page-container { width: 100%; max-width: none; margin: 0; padding-bottom: 40px; }
 }
 
 /* ===========================================================
-   NAVBAR SIZE FIX  (must stay at the very end of this file)
-   Change the three variables below to resize the whole navbar.
+   HEADER HEIGHT
+   The header is styled by shared/header.css. --header-h has to match
+   its height there, because section links stop this far from the top
+   and the mobile section tabs stick this far down. It used to say
+   76px / 64px, which slid both 12px under the header.
    =========================================================== */
 :root {
-    --header-h: 76px;      /* navbar height (desktop) */
-    --nav-btn-h: 40px;     /* nav links + Profile/Log Out buttons */
-    --logo-size: 48px;     /* logo width/height */
+    --header-h: 88px;      /* .topbar min-height, desktop */
 }
 
-@media (max-width: 768px) {
+@media (max-width: 800px) {
     :root {
-        --header-h: 64px;  /* navbar height (phone/tablet) */
-        --logo-size: 38px;
+        --header-h: 76px;  /* .topbar min-height, 800px and below */
     }
 }
 
-/* Fixed, predictable height. The sticky section tabs on mobile use
-   the same --header-h, so they sit flush under the navbar. */
-.header {
-    box-sizing: border-box;
-    height: var(--header-h);
-    min-height: var(--header-h);
-    padding-top: 0;
-    padding-bottom: 0;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-/* Logo: the shared ".brand img" rule was overriding ".brand-logo" */
-.header .brand { gap: 10px; min-width: 0; }
-.header .brand-logo {
-    width: var(--logo-size);
-    height: var(--logo-size);
-    object-fit: contain;
-    flex-shrink: 0;
-}
-
-/* Brand text: the later shared ".brand h1" rule also beat ".brand-text h1" */
-.header .brand-text h1 { font-size: 16px; line-height: 1.15; white-space: nowrap; }
-.header .brand-text p  { font-size: 10px; line-height: 1.2; letter-spacing: 1.2px; margin-top: 2px; white-space: nowrap; }
-
 /* ---------- MOBILE / TABLET ---------- */
-@media (max-width: 768px) {
+@media (max-width: 800px) {
     html { scroll-padding-top: calc(var(--header-h) + 56px); }
 
-    .header { padding-left: 16px; padding-right: 16px; }
-    .header .brand-text h1 { font-size: 13px; }
-    .header .brand-text p  { font-size: 8.5px; letter-spacing: 1px; }
-
     .mobile-header-btns { gap: 8px; }
-    .mobile-logout-btn,
-    .profile-btn { width: 40px; height: 40px; }
-    .mobile-logout-btn svg,
-    .profile-btn svg { width: 18px; height: 18px; }
 
     .page-tabs { padding: 8px 14px; }
     .page-tabs a { padding: 7px 14px; font-size: 12.5px; }
 }
 
 /* ---------- DESKTOP ---------- */
-@media (min-width: 769px) {
+@media (min-width: 801px) {
     html { scroll-padding-top: calc(var(--header-h) + 16px); }
-
-    /* Full-width navbar: the earlier "NAVIGATION POSITION FIX" set width:100%,
-       which stopped the header from stretching across the negative side margins
-       (it was shifted left and stopped short of the right edge). */
-    .header {
-        width: calc(100% + 2 * var(--page-pad));
-        max-width: none;
-    }
-
-    /* Nav links and both buttons share one height. The Log Out button
-       was not covered by the old fix, so it was taller than Profile. */
-    .desktop-nav a { height: var(--nav-btn-h); }
-
-    .desktop-profile-btn,
-    .desktop-logout-btn {
-        box-sizing: border-box;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        height: var(--nav-btn-h);
-        padding: 0 18px;
-        font-size: 14px;
-        line-height: 1;
-        white-space: nowrap;
-    }
 }
 
 /* Narrow desktop / tablet: keep everything on one line */
-@media (min-width: 769px) and (max-width: 1000px) {
-    .header { gap: 16px; }
-    .header .brand-text p { display: none; }
-    .desktop-nav ul { gap: 14px; }
-    .desktop-profile-btn,
-    .desktop-logout-btn { padding: 0 12px; }
-}

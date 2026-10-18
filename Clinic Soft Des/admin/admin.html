@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Appointment Management | University Clinic</title>
+    <title>Appointment Management | NUFV CARES</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,10 @@
 
     <!-- Shared theme first, then the admin additions -->
     <link rel="stylesheet" href="../appointment/appointments.css">
+    <link rel="stylesheet" href="../shared/notify.css">
+    <link rel="stylesheet" href="../shared/panels.css">
     <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="../shared/header.css">
 </head>
 
 <body>
@@ -20,11 +23,11 @@
     <!-- HEADER -->
     <header class="topbar">
 
-        <a href="../dashboard/dashboard.html" class="brand" aria-label="University Clinic home">
-            <img src="nufvlogo.png" alt="University Logo">
+        <a href="../dashboard/dashboard.html" class="brand" aria-label="NUFV CARES home">
+            <img src="../shared/nufvlogo.png" alt="University Logo">
 
             <div>
-                <h1>University Clinic</h1>
+                <h1>NUFV CARES</h1>
                 <span>Admin Portal</span>
             </div>
         </a>
@@ -33,16 +36,29 @@
         <nav class="desktop-nav">
 
             <a href="../dashboard/dashboard.html">Home</a>
-
             <a href="admin.html" class="active">Appointments</a>
-
-            <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
+            <a href="../dashboard/dashboard.html#services">Services</a>
+            <a href="../dashboard/dashboard.html#schedule">Schedule</a>
+            <a href="../dashboard/dashboard.html#clinic-info">Clinic Information</a>
 
         </nav>
 
 
+        <!-- Bell and account menu, kept apart from the links so the
+             links can sit in the middle of the bar -->
+        <div class="topbar-actions">
+
+            <div class="bell-slot" id="bellSlotDesktop"></div>
+
+            <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
+
+        </div>
+
+
         <!-- Mobile header buttons -->
         <div class="mobile-header-btns">
+
+            <div class="bell-slot" id="bellSlotMobile"></div>
 
             <a href="../dashboard/dashboard.html" class="mobile-icon-btn" aria-label="Home" title="Home">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -355,7 +371,7 @@
 
     <!-- FOOTER -->
     <footer>
-        <p>© 2026 University Clinic. All rights reserved.</p>
+        <p>© 2026 NUFV CARES. All rights reserved.</p>
     </footer>
 
 

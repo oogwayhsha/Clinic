@@ -109,6 +109,27 @@ function initDashboard() {
         });
     }
 
+    const PORTAL_LABELS = {
+        student: "Student Portal",
+        employee: "Employee Portal",
+        admin: "Admin Portal"
+    };
+
+    // The Appointments link in the header goes to this role's own page.
+    function updateNavLinks() {
+        const href = currentRole === "admin" ? ADMIN_PAGE : appointmentPage();
+
+        // Desktop nav and the mobile tab strip both have one
+        ["navAppointments", "tabAppointments"].forEach((id) => {
+            document.getElementById(id)?.setAttribute("href", href);
+        });
+    }
+
+    function updatePortalLabel() {
+        const label = document.getElementById("portalLabel");
+        if (label) label.textContent = PORTAL_LABELS[currentRole] || PORTAL_LABELS.student;
+    }
+
     // The admin has no profile page, so hide the profile buttons for them
     function updateProfileButtons() {
         [deskProfileBtn, profileBtn].forEach((btn) => {
@@ -187,6 +208,8 @@ function initDashboard() {
 
             updateServiceLinks();
             updateProfileButtons();
+            updatePortalLabel();
+            updateNavLinks();
             return;
         }
 
@@ -263,6 +286,8 @@ function initDashboard() {
 
         updateServiceLinks();
         updateProfileButtons();
+        updatePortalLabel();
+        updateNavLinks();
     });
 
 
@@ -305,9 +330,14 @@ function initDashboard() {
 
     navLinks.forEach((link) => {
         link.addEventListener("click", (e) => {
-            e.preventDefault();
+            const href = link.getAttribute("href") || "";
 
-            const href = link.getAttribute("href");
+            // Only in-page links (#services, ...) scroll here. Appointments
+            // goes to another page, so let the browser follow it; this
+            // handler used to cancel it and scroll to the top, like Home.
+            if (!href.startsWith("#")) return;
+
+            e.preventDefault();
             setActiveTab(href);
 
             // Temporarily pause scroll spy while smooth scrolling

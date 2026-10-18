@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>University Clinic Appointment System</title>
+    <title>Home | NUFV CARES</title>
     <!-- Google Fonts: Outfit (Primary & Headings) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,89 +12,78 @@
         rel="stylesheet">
     <link rel="stylesheet" href="dashboard.css">
     <link rel="stylesheet" href="../shared/notify.css">
-    <style>
-        /* Keep the header fixed/sticky at the top with a solid white background */
-        .header {
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            background-color: #ffffff;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-    </style>
+    <link rel="stylesheet" href="../shared/header.css">
 </head>
 
 <body>
     <div class="dashboard-wrapper">
         <!-- Main Scrollable Content Container -->
-        <div class="dashboard-container">
+        <!-- The header sits outside .dashboard-container: that container
+             carries up to 80px of side padding, which stopped the header
+             reaching the edges the way it does on every other page. -->
+        <header class="topbar">
 
-            <!-- Top Header -->
-            <header class="header">
-                <div class="brand">
-                    <img src="nufvlogo.png" alt="University Clinic Logo" class="brand-logo">
-                    <div class="brand-text">
-                        <h1>UNIVERSITY CLINIC</h1>
-                        <p>APPOINTMENT SYSTEM</p>
-                    </div>
+            <a href="dashboard.html" class="brand" aria-label="NUFV CARES home">
+                <img src="../shared/nufvlogo.png" alt="University Logo">
+
+                <div>
+                    <h1>NUFV CARES</h1>
+                    <span id="portalLabel">Student Portal</span>
                 </div>
+            </a>
 
-                <!-- Desktop Navigation Links -->
+
                 <nav class="desktop-nav">
-                    <ul>
-                        <li><a href="#" class="active">Home</a></li>
-                        <li><a href="#services">Services</a></li>
-                        <li><a href="#schedule">Schedule</a></li>
-                        <li><a href="#clinic-info">Clinic Information</a></li>
-                    </ul>
+
+                    <a href="#" class="active">Home</a>
+                    <a href="../student/st-appointment.html" id="navAppointments">Appointments</a>
+                    <a href="#services">Services</a>
+                    <a href="#schedule">Schedule</a>
+                    <a href="#clinic-info">Clinic Information</a>
+
                 </nav>
 
-                <!-- Desktop Header Actions (Profile + Logout) -->
-                <div class="desktop-header-actions">
+
+                <!-- Bell and account menu, kept apart from the links so the
+                     links can sit in the middle of the bar -->
+                <div class="topbar-actions">
+
                     <div class="bell-slot" id="bellSlotDesktop"></div>
 
-                    <a href="profile.html" class="desktop-profile-btn" id="deskProfileBtn" aria-label="User Profile" title="Profile">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
+                    <a href="../student/student-profile.html" class="nav-profile-btn" id="deskProfileBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         <span>Profile</span>
                     </a>
 
-                    <a href="../login/login.html" class="desktop-logout-btn" id="desktopLogoutBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        <span>Log Out</span>
-                    </a>
+                    <button type="button" id="desktopLogoutBtn" class="logout-btn">Logout</button>
+
                 </div>
 
-                <!-- Mobile Action Buttons -->
-                <div class="mobile-header-btns">
-                    <div class="bell-slot" id="bellSlotMobile"></div>
 
-                    <a href="../login/login.html" class="mobile-logout-btn" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                    </a>
-                    <a href="profile.html" class="profile-btn" aria-label="User Profile" id="profileBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                    </a>
-                </div>
-            </header>
+            <!-- Mobile header buttons -->
+            <div class="mobile-header-btns">
 
+                <div class="bell-slot" id="bellSlotMobile"></div>
+
+                <a href="../student/student-profile.html" class="mobile-icon-btn" id="profileBtn" aria-label="My Profile" title="Profile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </a>
+
+                <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
+
+            </div>
+
+        </header>
+
+        <div class="dashboard-container">
+
+            <!-- Top Header -->
             <!-- Mobile section tabs (shown on phones/tablets only) -->
             <nav class="page-tabs" aria-label="Sections">
                 <a href="#" class="active">Home</a>
+                <a href="../student/st-appointment.html" id="tabAppointments">Appointments</a>
                 <a href="#services">Services</a>
                 <a href="#schedule">Schedule</a>
                 <a href="#clinic-info">Clinic Info</a>
@@ -137,7 +126,7 @@
                                 <polyline points="9 22 9 12 15 12 15 22"></polyline>
                             </svg>
                         </div>
-                        <span>Welcome to University Clinic</span>
+                        <span>Welcome to NUFV CARES</span>
                     </div>
 
                     <h2 class="welcome-text">
@@ -327,7 +316,7 @@
             <section class="services-grid" aria-label="Clinic services">
 
                 <!-- Medical Consultation -->
-                <a href="booking.html?service=consultation" class="service-card" data-service="consultation">
+                <a href="../student/st-appointment.html?service=consultation" class="service-card" data-service="consultation">
                     <div class="service-icon blue">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
@@ -345,7 +334,7 @@
                 </a>
 
                 <!-- Dental Services -->
-                <a href="booking.html?service=dental" class="service-card" data-service="dental">
+                <a href="../student/st-appointment.html?service=dental" class="service-card" data-service="dental">
                     <div class="service-icon teal">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M7 4c-2.2 0-4 1.8-4 4.2 0 1.7.6 2.8 1.1 4.3C4.6 14.4 5 20 7 20c1.6 0 1.5-4 3-4h4c1.5 0 1.4 4 3 4 2 0 2.4-5.6 2.9-7.5.5-1.5 1.1-2.6 1.1-4.3C21 5.8 19.2 4 17 4c-1.5 0-2.5 1-5 1S8.5 4 7 4z"></path>
@@ -363,7 +352,7 @@
                 </a>
 
                 <!-- Medical Certificate -->
-                <a href="booking.html?service=certificate" class="service-card" data-service="certificate">
+                <a href="../student/st-appointment.html?service=certificate" class="service-card" data-service="certificate">
                     <div class="service-icon orange">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>

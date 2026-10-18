@@ -8,6 +8,7 @@ import { auth, db } from "../firebase/firebase.js";
 
 import {
     ref,
+    get,
     push,
     update,
     query,
@@ -16,7 +17,10 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
-import { EMAILJS, CLINIC_NAME } from "./config.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+import { loadAvatar, avatarInner } from "./avatar.js";
+import { EMAILJS, CLINIC_NAME, ADMIN_UID } from "./config.js";
 import { escapeHtml } from "./clinic.js";
 
 // Notification links are stored relative to the site root ("student/st-appointment.html?...")
@@ -404,8 +408,10 @@ export function mountBell(uid, containers) {
 
 /* ===== Profile dropdown (Log Out sa loob ng Profile menu) ===== */
 (function () {
-    var USER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+    var USER_ICON = '<svg class="pm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
     var CHEVRON = '<svg class="pm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+
+    var LOGOUT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
 
     function ensureLabel(el, text) {
         if (!el.textContent.trim()) {
@@ -424,13 +430,22 @@ export function mountBell(uid, containers) {
         trigger.className = "profile-menu-trigger";
         trigger.setAttribute("aria-haspopup", "menu");
         trigger.setAttribute("aria-expanded", "false");
-        trigger.setAttribute("aria-label", profile ? "Profile menu" : "Account menu");
-        trigger.innerHTML = USER_ICON + '<span class="pm-label">' +
-            (profile ? "Profile" : "Account") + "</span>" + CHEVRON;
+        trigger.setAttribute("aria-label", "Account menu");
+        trigger.innerHTML = USER_ICON + '<span class="pm-label">Account</span>' + CHEVRON;
+
+        triggers.push(trigger);
 
         var dropdown = document.createElement("div");
         dropdown.className = "profile-dropdown";
         dropdown.setAttribute("role", "menu");
+
+        // Who is signed in. Without it the menu was two links in a box.
+        var who = document.createElement("div");
+        who.className = "pm-whoami";
+        who.innerHTML = '<span class="pm-whoami-avatar"></span>' +
+            '<span class="pm-whoami-text"><strong></strong><small></small></span>';
+        dropdown.appendChild(who);
+        whoamis.push(who);
 
         var anchor = logout;
         if (profile && (logout.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_PRECEDING)) {
@@ -442,6 +457,8 @@ export function mountBell(uid, containers) {
 
         if (profile) { ensureLabel(profile, "My Profile"); dropdown.appendChild(profile); }
         ensureLabel(logout, "Log Out");
+        // Profile has an icon in the menu, so Log Out gets one too
+        if (!logout.querySelector("svg")) logout.insertAdjacentHTML("afterbegin", LOGOUT_ICON);
         logout.classList.add("pm-logout");
         dropdown.appendChild(logout);
 
@@ -461,16 +478,79 @@ export function mountBell(uid, containers) {
         });
     }
 
+    var triggers = [];
+    var whoamis = [];
+
+    // Swap the plain user icon for the person's own photo, so the header
+    // shows who is signed in. Without a photo the icon is left alone.
+    // Their name and role, looked up where their profile actually lives.
+    function loadWho(user) {
+        if (user.uid === ADMIN_UID) {
+            return Promise.resolve({ name: user.email || "Admin", role: "Admin" });
+        }
+
+        var folders = [["staff", "Clinic Staff"], ["students", "Student"], ["employees", "Employee"]];
+
+        return folders.reduce(function (chain, pair) {
+            return chain.then(function (found) {
+                if (found) return found;
+
+                return get(ref(db, pair[0] + "/" + user.uid))
+                    .then(function (snap) {
+                        if (!snap.exists()) return null;
+                        var v = snap.val() || {};
+                        return { name: v.fullName || v.name || user.email, role: pair[1] };
+                    })
+                    .catch(function () { return null; });   // rules may refuse; try the next
+            });
+        }, Promise.resolve(null)).then(function (found) {
+            return found || { name: user.displayName || user.email || "Signed in", role: "" };
+        });
+    }
+
+    function showWho(info, photo) {
+        whoamis.forEach(function (box) {
+            box.querySelector(".pm-whoami-avatar").innerHTML = avatarInner(photo, info.name);
+            box.querySelector("strong").textContent = info.name;
+            box.querySelector("small").textContent = info.role;
+        });
+    }
+
+    function showOwnPhoto(photo) {
+        triggers.forEach(function (trigger) {
+            var icon = trigger.querySelector(".pm-icon");
+            if (!icon) return;
+
+            var img = document.createElement("img");
+            img.className = "pm-avatar";
+            img.src = photo;
+            img.alt = "";
+            icon.replaceWith(img);
+        });
+    }
+
     function init() {
         var dLogout = document.getElementById("logoutBtn") || document.getElementById("desktopLogoutBtn");
-        var dProfile = document.getElementById("deskProfileBtn") ||
-            document.querySelector(".desktop-nav .nav-profile-btn");
+        var dProfile = document.getElementById("deskProfileBtn");
         if (dLogout) build(dLogout, dProfile, false);
 
         var mLogout = document.getElementById("mobileLogoutBtn");
-        var mProfile = document.getElementById("profileBtn") ||
-            document.querySelector('.mobile-header-btns [aria-label="My Profile"]');
+        var mProfile = document.getElementById("profileBtn");
         if (mLogout) build(mLogout, mProfile, true);
+
+        if (triggers.length === 0) return;
+
+        onAuthStateChanged(auth, function (user) {
+            if (!user) return;
+
+            Promise.all([loadAvatar(user.uid), loadWho(user)])
+                .then(function (results) {
+                    var photo = results[0];
+                    if (photo) showOwnPhoto(photo);
+                    showWho(results[1], photo);
+                })
+                .catch(function (error) { console.warn("Could not load the account menu:", error); });
+        });
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

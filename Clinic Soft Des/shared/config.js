@@ -6,7 +6,7 @@
 // Also used in database.rules.json: keep both in sync.
 export const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
 
-export const CLINIC_NAME = "NUFV Clinic";
+export const CLINIC_NAME = "NUFV CARES";
 
 
 /* =========================================

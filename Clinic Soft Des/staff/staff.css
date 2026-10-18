@@ -154,3 +154,13 @@
     .attend-detail { text-align: left; max-width: none; }
     .staff-tabs .tab { flex: 1 1 45%; }
 }
+
+/* On desktop the header links to these sections, so the in-page tab row
+   would just repeat it. On phones the header links are hidden (see
+   shared/header.css, 800px), and this row is the menu. */
+@media (min-width: 801px) {
+    .tabs.staff-tabs { display: none; }
+}
+
+/* Clear the sticky header when a section is scrolled into view */
+.tab-panel { scroll-margin-top: 104px; }

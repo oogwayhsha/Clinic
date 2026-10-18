@@ -164,6 +164,11 @@ document.addEventListener("DOMContentLoaded", () => {
             tab.setAttribute("aria-selected", String(on));
         });
 
+        // The same sections are linked from the header on desktop
+        document.querySelectorAll("[data-nav-tab]").forEach((link) => {
+            link.classList.toggle("active", link.dataset.navTab === name);
+        });
+
         document.querySelectorAll(".tab-panel").forEach((panel) => {
             panel.hidden = panel.id !== `panel-${name}`;
         });
@@ -174,6 +179,31 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector(".staff-tabs").addEventListener("click", (event) => {
         const tab = event.target.closest("[data-tab]");
         if (tab) showTab(tab.dataset.tab);
+    });
+
+    // Opens a section and brings it into view. On desktop the tab row is
+    // hidden (the header carries those links), so scroll to the panel itself.
+    function openSection(name) {
+        showTab(name);
+        document.getElementById(`panel-${name}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.querySelectorAll("[data-nav-tab]").forEach((link) => {
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            openSection(link.dataset.navTab);
+        });
+    });
+
+    // The profile has no tab of its own; it is reached from the account menu
+    ["deskProfileBtn", "profileBtn"].forEach((id) => {
+        const link = document.getElementById(id);
+        if (!link) return;
+
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            openSection("profile");
+        });
     });
 
     document.querySelectorAll("[data-go]").forEach((card) => {
@@ -197,8 +227,11 @@ document.addEventListener("DOMContentLoaded", () => {
         $("statAwaiting").textContent = upcoming.filter((a) => stateOf(a) === "awaiting").length;
         $("statAttending").textContent = upcoming.filter((a) => stateOf(a) === "attending" && startOf(a) > new Date()).length;
 
-        $("requestCount").textContent = requests.length;
-        $("requestCount").hidden = requests.length === 0;
+        [$("requestCount"), $("navRequestCount")].forEach((badge) => {
+            if (!badge) return;
+            badge.textContent = requests.length;
+            badge.hidden = requests.length === 0;
+        });
     }
 
 
@@ -1436,7 +1469,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         $("greeting").textContent = `${greetingWord()}, ${staffDisplayName(profile)}`;
         $("roleLabel").textContent = `${staffTypeLabel(profile.type).toUpperCase()} DASHBOARD`;
-        document.title = `${staffTypeLabel(profile.type)} Dashboard | University Clinic`;
+        document.title = `${staffTypeLabel(profile.type)} Dashboard | NUFV CARES`;
 
         $("accessCheck").hidden = true;
         $("staffContent").hidden = false;
