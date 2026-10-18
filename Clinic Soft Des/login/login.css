@@ -1223,6 +1223,70 @@ body {
 
 }
 
+.login-success {
+
+    color: var(--success);
+
+}
+
+
+/* ============================================================
+   FORGOT PASSWORD
+   ============================================================ */
+
+.forgot-row {
+
+    display: flex;
+
+    justify-content: flex-end;
+
+    margin-top: 6px;
+
+}
+
+
+.forgot-link {
+
+    background: none;
+
+    border: none;
+
+    padding: 0;
+
+    color: var(--nu-blue);
+
+    font-family: inherit;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    text-decoration: underline;
+
+    text-underline-offset: 2px;
+
+}
+
+
+.forgot-link:hover {
+
+    color: var(--nu-dark-blue);
+
+}
+
+
+.forgot-link:focus-visible {
+
+    outline: 2px solid var(--nu-blue);
+
+    outline-offset: 3px;
+
+    border-radius: 3px;
+
+}
+
 
 /* ============================================================
    FOOTER

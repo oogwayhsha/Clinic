@@ -204,6 +204,12 @@
                             class="error"
                         ></span>
 
+                        <div class="forgot-row">
+                            <button type="button" id="forgotPasswordBtn" class="forgot-link">
+                                Forgot your password?
+                            </button>
+                        </div>
+
                     </div>
 
 
@@ -358,6 +364,58 @@
 
             <button type="button" class="tap-switch" id="tapNotMe">
                 Not you? Log in with a different account
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- =====================================================
+         FORGOT PASSWORD
+         Sends Firebase's own reset email, so a student who forgets
+         their password doesn't have to ask the admin to do it.
+    ====================================================== -->
+    <div class="tap-modal" id="resetModal" role="dialog" aria-modal="true" aria-labelledby="resetTitle" hidden>
+
+        <form class="tap-card" id="resetForm" novalidate>
+
+            <button type="button" class="tap-close" id="resetCancel" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="tap-icon">
+                <i class="fa-solid fa-key"></i>
+            </div>
+
+            <h3 id="resetTitle">Reset your password</h3>
+
+            <p class="tap-help">
+                Enter the email you log in with. We'll send you a link to set a new password.
+            </p>
+
+            <div class="form-group">
+
+                <label for="resetEmail">Email</label>
+
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-envelope"></i>
+                    <input type="email" id="resetEmail" placeholder="Enter your email" autocomplete="username">
+                </div>
+
+                <span id="resetError" class="error"></span>
+
+            </div>
+
+            <p id="resetMessage"></p>
+
+            <button type="submit" class="login-button" id="resetSubmit">
+                <span>Send reset link</span>
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+
+            <button type="button" class="tap-switch" id="resetBack">
+                Back to login
             </button>
 
         </form>

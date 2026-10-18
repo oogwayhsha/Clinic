@@ -1,5 +1,5 @@
 import { auth, db } from "../firebase/firebase.js";
-import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { ADMIN_UID } from "../shared/config.js";
 
@@ -499,4 +499,114 @@ onValue(ref(db, "rfid_tap"), async (snapshot) => {
   lastHandledTapTime = tap.timestamp;
 
   processRfidCard(tap.cardUid);
+});
+
+// ==========================================
+// FORGOT PASSWORD
+// Firebase sends the reset email, so nobody has to wait for an admin
+// to do it for them.
+// ==========================================
+const resetModal = document.getElementById("resetModal");
+const resetForm = document.getElementById("resetForm");
+const resetEmail = document.getElementById("resetEmail");
+const resetError = document.getElementById("resetError");
+const resetMessage = document.getElementById("resetMessage");
+const resetSubmit = document.getElementById("resetSubmit");
+
+function setResetMessage(text, kind) {
+  resetMessage.textContent = text;
+  resetMessage.className = kind === "ok" ? "login-success" : "login-error";
+}
+
+function openResetModal() {
+  // Carry over whatever they already typed, so it isn't asked twice
+  resetEmail.value = emailField.value.trim();
+  resetError.textContent = "";
+  resetMessage.textContent = "";
+  resetMessage.className = "";
+  resetSubmit.disabled = false;
+  resetModal.hidden = false;
+  setTimeout(() => resetEmail.focus(), 50);
+}
+
+function closeResetModal() {
+  resetModal.hidden = true;
+}
+
+document.getElementById("forgotPasswordBtn").addEventListener("click", openResetModal);
+document.getElementById("resetCancel").addEventListener("click", closeResetModal);
+document.getElementById("resetBack").addEventListener("click", closeResetModal);
+
+resetModal.addEventListener("click", (event) => {
+  if (event.target === resetModal) closeResetModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !resetModal.hidden) closeResetModal();
+});
+
+resetEmail.addEventListener("input", () => {
+  resetError.textContent = "";
+  resetEmail.closest(".input-wrapper")?.classList.remove("has-error");
+});
+
+resetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const email = resetEmail.value.trim();
+
+  resetError.textContent = "";
+  resetMessage.textContent = "";
+  resetMessage.className = "";
+
+  if (email === "") {
+    resetError.textContent = "Enter the email you log in with.";
+    resetEmail.closest(".input-wrapper")?.classList.add("has-error");
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    resetError.textContent = "Enter a valid email address.";
+    resetEmail.closest(".input-wrapper")?.classList.add("has-error");
+    return;
+  }
+
+  resetSubmit.disabled = true;
+  setResetMessage("Sending...", "ok");
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+
+    // Said the same way whether or not the account exists, so the page
+    // can't be used to find out who has an account here.
+    setResetMessage("If that email has an account, a reset link is on its way. Check your inbox and spam folder.", "ok");
+  } catch (error) {
+    console.error("Password reset error:", error);
+
+    switch (error.code) {
+      case "auth/invalid-email":
+        resetError.textContent = "Enter a valid email address.";
+        setResetMessage("", "");
+        break;
+
+      case "auth/too-many-requests":
+        setResetMessage("Too many attempts. Please try again in a few minutes.", "error");
+        break;
+
+      case "auth/network-request-failed":
+        setResetMessage("Network error. Check your connection and try again.", "error");
+        break;
+
+      case "auth/user-not-found":
+        // Same wording as success, for the reason above
+        setResetMessage("If that email has an account, a reset link is on its way. Check your inbox and spam folder.", "ok");
+        break;
+
+      default:
+        setResetMessage("Could not send the reset email. Please try again.", "error");
+        break;
+    }
+  } finally {
+    resetSubmit.disabled = false;
+  }
 });
