@@ -3,6 +3,10 @@
 // ==========================================
 import { app, auth, db } from "../firebase/firebase.js";
 
+
+import { DEFAULT_REASONS } from "../shared/reasons.js";
+
+
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 
 import {
