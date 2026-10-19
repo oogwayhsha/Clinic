@@ -755,7 +755,57 @@ document.addEventListener("DOMContentLoaded", () => {
     $("serviceFilter").addEventListener("change", (e) => { filters.service = e.target.value; renderList(); });
     $("roleFilter").addEventListener("change", (e) => { filters.role = e.target.value; renderList(); });
     $("providerFilter").addEventListener("change", (e) => { filters.provider = e.target.value; renderList(); });
-    $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
+    $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList();
+                                                      
+    });
+
+    
+document.querySelectorAll(".stat-card[data-filter]")
+    .forEach(card => {
+        function selectCard() {
+            const filter = card.dataset.filter;
+
+            document.querySelectorAll(
+                ".stat-card[data-filter]"
+            ).forEach(item => {
+                item.classList.toggle(
+                    "active",
+                    item === card
+                );
+                item.setAttribute(
+                    "aria-pressed",
+                    String(item === card)
+                );
+            });
+
+            // Connect to the existing appointment filter.
+            const statusFilter =
+                document.querySelector("#statusFilter");
+
+            if (statusFilter) {
+                statusFilter.value =
+                    filter === "today" ? "all" : filter;
+
+                statusFilter.dispatchEvent(
+                    new Event("change", { bubbles: true })
+                );
+            }
+
+            // Today needs an additional date filter
+            // using the appointment's scheduled date.
+        }
+
+        card.addEventListener("click", selectCard);
+
+        card.addEventListener("keydown", event => {
+            if (event.key === "Enter" ||
+                event.key === " ") {
+                event.preventDefault();
+                selectCard();
+            }
+        });
+    });
+
 
     $("refreshBtn").addEventListener("click", async () => {
         try {
