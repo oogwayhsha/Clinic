@@ -21,14 +21,12 @@ const ADMIN_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real adm
 const DESTINATIONS = {
   student: "../dashboard/dashboard.html",
   employee: "../dashboard/dashboard.html",
-  staff: "../staff/staff.html",
   admin: "../admin/admin.html"
 };
 
 const ROLE_NAMES = {
   student: "student",
   employee: "employee",
-  staff: "clinic staff",
   admin: "admin"
 };
 
@@ -90,20 +88,6 @@ async function checkRole(user, role) {
   if ((role === "admin") !== isAdminAccount) {
     await signOut(auth);
     return "This account is not " + (role === "admin" ? "an admin" : "a " + ROLE_NAMES[role]) + " account.";
-  }
-
-  if (role === "staff") {
-    const snap = await get(ref(db, `staff/${user.uid}`));
-
-    if (!snap.exists()) {
-      await signOut(auth);
-      return "This account is not a clinic staff account.";
-    }
-
-    if (snap.val().active === false) {
-      await signOut(auth);
-      return "This staff account has been deactivated. Please contact the clinic admin.";
-    }
   }
 
   // Student / Employee: the account must exist in the matching folder
