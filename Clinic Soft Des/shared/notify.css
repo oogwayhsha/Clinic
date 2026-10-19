@@ -120,3 +120,11 @@
 .profile-dropdown svg { width: 16px !important; height: 16px !important; flex-shrink: 0; }
 .profile-dropdown .pm-logout, .profile-dropdown .pm-logout:hover { color: #ef4444 !important; }
 .profile-dropdown .pm-logout:hover { background: #fef2f2 !important; }
+
+
+
+/* Keep notifications above the header */
+.bell-panel {
+    z-index: 5000;
+}
+
