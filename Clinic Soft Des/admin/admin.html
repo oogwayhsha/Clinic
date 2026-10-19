@@ -111,29 +111,28 @@
             <!-- STATS -->
             <section class="stats-grid" aria-label="Appointment overview">
 
-                <div class="stat-card">
-                    <span class="stat-label">Today</span>
-                    <strong id="statToday">0</strong>
-                    <small>appointments</small>
-                </div>
+               
+               
+            <div class="stat-card" data-filter="today"
+                role="button" tabindex="0">
+                <!-- Keep your existing Today card content -->
+             </div>
 
-                <div class="stat-card">
-                    <span class="stat-label">Pending</span>
-                    <strong id="statPending">0</strong>
-                    <small>waiting for a provider</small>
-                </div>
+             <div class="stat-card" data-filter="pending"
+                role="button" tabindex="0">
+                <!-- Keep your existing Pending card content -->
+            </div>
 
-                <div class="stat-card">
-                    <span class="stat-label">Approved</span>
-                    <strong id="statConfirmed">0</strong>
-                    <small>upcoming</small>
-                </div>
+            <div class="stat-card" data-filter="approved"
+                 role="button" tabindex="0">
+                    <!-- Keep your existing Approved card content -->
+            </div>
 
-                <div class="stat-card">
-                    <span class="stat-label">Completed</span>
-                    <strong id="statCompleted">0</strong>
-                    <small>all time</small>
-                </div>
+            <div class="stat-card" data-filter="completed"
+                 role="button" tabindex="0">
+                <!-- Keep your existing Completed card content -->
+            </div>
+
 
             </section>
 
@@ -368,6 +367,45 @@
 
     </main>
 
+
+
+
+<section class="card" id="bookingReasonsManager"
+    style="max-width:1100px;margin:24px auto;padding:24px;">
+
+    <span class="section-label">ADMIN SETTINGS</span>
+    <h3>Manage Booking Reasons</h3>
+
+    <p>
+        Add, rename, activate or deactivate
+        reasons shown to students and employees.
+    </p>
+
+    <form id="reasonAdminForm"
+        style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;">
+
+        <input id="reasonAdminName"
+            maxlength="100"
+            required
+            placeholder="New booking reason"
+            aria-label="New booking reason"
+            style="flex:1;min-width:220px;padding:12px;border:1px solid #d6deeb;border-radius:10px;">
+
+        <button class="btn-primary" type="submit">
+            Add reason
+        </button>
+    </form>
+
+    <div id="reasonAdminList" aria-live="polite">
+        Loading reasons...
+    </div>
+
+    <p id="reasonAdminStatus" role="status"></p>
+</section>
+
+
+
+    
 
     <!-- FOOTER -->
     <footer>

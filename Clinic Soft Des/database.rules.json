@@ -162,6 +162,13 @@
           }
         }
       }
+    },
+"bookingReasons": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2'",
+      "$id": {
+        ".validate": "newData.hasChildren(['name', 'active', 'order']) && newData.child('name').isString() && newData.child('name').val().length <= 100 && newData.child('active').isBoolean() && newData.child('order').isNumber()"
+      }
     }
   }
 }

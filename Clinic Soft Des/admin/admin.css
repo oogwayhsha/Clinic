@@ -702,3 +702,27 @@
     .appt-actions .link-btn { flex: 1; }
     .badge { align-self: flex-start; }
 }
+
+
+/* Clickable Appointment Dashboard Cards */
+
+.stat-card[data-filter] {
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.stat-card[data-filter]:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(10, 31, 82, 0.12);
+}
+
+.stat-card[data-filter].active {
+    border: 2px solid #0c215c;
+    background: #f0f4ff;
+}
+
+.stat-card[data-filter]:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 3px;
+}
+

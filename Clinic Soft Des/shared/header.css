@@ -148,3 +148,20 @@
 @media (max-width: 380px) {
     .topbar .brand span { display: none; }
 }
+
+
+/* Keep profile dropdown above the header */
+.topbar:has(.profile-menu.open) {
+    z-index: 3000;
+    overflow: visible;
+}
+
+.topbar .profile-menu.open {
+    z-index: 3001;
+}
+
+.topbar .profile-dropdown {
+    z-index: 3002;
+}
+
+

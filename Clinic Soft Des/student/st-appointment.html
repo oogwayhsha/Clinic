@@ -186,9 +186,23 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="reason">Reason for your visit</label>
-                            <textarea id="reason" maxlength="300" placeholder="e.g. Headache and fever since yesterday"></textarea>
-                            <span class="char-count" id="reasonCount">0 / 300</span>
+                            <select id="reason" aria-label="Reason for your visit">
+                                <option value="">Select a reason</option>
+                            </select>
+
+
+                        <div id="otherReasonWrap" hidden>
+                            <label for="otherReason">Please specify</label>
+                            <textarea
+                                id="otherReason"
+                                maxlength="300"
+                                placeholder="Briefly describe your reason">
+                            </textarea>
+                        <span class="char-count" id="reasonCount">
+                             0 / 300
+                        </span>
+                    </div>
+                            
                         </div>
 
                         <details class="history-box" id="historyBox">
