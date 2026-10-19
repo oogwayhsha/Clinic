@@ -1,6 +1,7 @@
 // ==========================================
 // APPOINTMENTS PAGE: request + manage appointments
 // Used by students (st-appointment.html) and employees (em-appointment.html).
+// One appointment per 30-minute slot; the clinic approves each request.
 // ==========================================
 import { auth, db } from "../firebase/firebase.js";
 
@@ -12,7 +13,6 @@ import {
 import {
     ref,
     get,
-    set,
     push,
     update,
     query,
@@ -25,13 +25,12 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
-import { ADMIN_UID, SWEEP_MS } from "../shared/config.js";
+import { SWEEP_MS, BOOKING_LIMITS } from "../shared/config.js";
 
 import {
-    SERVICES,
-    STAFF_TYPES,
-    CONDITIONS,
     BOOKING_WINDOW_DAYS,
+    HOURS_TEXT,
+    DAY_SLOTS,
     toDateKey,
     parseDateKey,
     toMinutes,
@@ -42,30 +41,22 @@ import {
     slotKey,
     isSlotPast,
     escapeHtml,
-    describeDays,
-    describeRanges,
-    generateSlots,
-    listOf,
-    staffDisplayName,
-    staffTypeLabel,
-    staffWorksAt,
-    eligibleStaff,
-    freeStaffAt,
-    pickStaff,
-    rangesFor,
+    isClinicDay,
+    isTaken,
+    openSlots,
+    reasonOf,
     startOf,
     stateOf,
     stateLabel,
     STATE_INFO,
     isActive,
     reminderTimes,
-    hasMedicalHistory,
-    medicalHistoryHtml,
     historyTimelineHtml
 } from "../shared/clinic.js";
 
+import { normalizeReasons } from "../shared/reasons.js";
+import { isClinicAdmin } from "../shared/access.js";
 import { mountBell } from "../shared/notify.js";
-import { loadAvatars, avatarInner } from "../shared/avatar.js";
 
 import {
     notifyNewRequest,
@@ -73,13 +64,6 @@ import {
     confirmAttendance,
     sweepAppointments
 } from "../shared/actions.js";
-
-
-import {
-    DEFAULT_REASONS,
-    normalizeReasons
-} from "../shared/reasons.js";
-
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -91,8 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
         student:  { idField: "studentId",  label: "Student",  other: "../employee/em-appointment.html" },
         employee: { idField: "employeeId", label: "Employee", other: "../student/st-appointment.html" }
     }[PAGE_ROLE];
-
-    const MAX_REASON = 300;
 
 
     /* =========================================
@@ -121,11 +103,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentUser = null;
     let patient = { name: "", id: "", phone: "", email: "" };
 
-    let staffMap = {};          // staff/{uid}
-    let staffPhotos = {};       // uid -> photo
-    let staffLoaded = false;
-    let bookings = {};          // bookings/{date}/{staffId}/{HHMM} = appointmentId
-    let bookingsLoaded = false;
+    let reasons = normalizeReasons(null);
+    let slots = {};             // timeSlots/{date}/{HHMM} = appointmentId
+    let closures = {};          // clinicClosures/{date} = note
+    let slotsLoaded = false;
 
     let myAppointments = [];
     let appointmentsLoaded = false;
@@ -134,8 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let openedFromLink = false;
 
     const state = {
-        service: "",
-        pref: { kind: "any" },   // any | { kind: "type", type } | { kind: "person", staffId }
+        reason: "",
         date: "",
         time: "",
         submitting: false
@@ -144,6 +124,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let pendingCancel = null;  // appointment waiting for cancel confirmation
 
     const actor = () => ({ uid: currentUser.uid, name: patient.name, role: "patient" });
+
+    $("hoursNote").textContent = `The clinic takes appointments ${HOURS_TEXT}. You can book up to two weeks ahead.`;
 
 
     /* =========================================
@@ -177,177 +159,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
-       AVAILABILITY
-       A time is open when the service runs then and at least one
-       matching provider is working and not already booked.
+       STEP 1: REASON (the clinic's list)
     ========================================= */
 
-    const candidates = () =>
-        state.service ? eligibleStaff(staffMap, state.service, state.pref) : [];
+    function renderReasons() {
 
-    // Times on that day when a matching provider is on duty
-    function workingTimes(key) {
+        const select = $("reason");
+        const previous = state.reason;
 
-        const service = SERVICES[state.service];
+        select.replaceChildren(new Option("Select a reason", ""));
+        reasons.forEach((r) => select.add(new Option(r.name, r.name)));
 
-        if (!service || !service.days.includes(parseDateKey(key).getDay())) return [];
+        // Keep the choice if the clinic didn't remove it in the meantime
+        state.reason = reasons.some((r) => r.name === previous) ? previous : "";
+        select.value = state.reason;
 
-        const list = candidates();
-
-        return generateSlots(service).filter((time) => list.some((s) => staffWorksAt(s, key, time)));
+        updateSummary();
     }
 
-    const freeAt = (key, time) => freeStaffAt(candidates(), bookings[key], key, time);
-
-    const openTimes = (key) =>
-        workingTimes(key).filter((time) => !isSlotPast(key, time) && freeAt(key, time).length > 0);
-
-
-    /* =========================================
-       STEP 1: SERVICES
-    ========================================= */
-
-    function renderServices() {
-
-        $("serviceOptions").innerHTML = Object.entries(SERVICES).map(([id, svc]) => `
-            <button type="button"
-                    class="service-option${state.service === id ? " selected" : ""}"
-                    data-service="${id}"
-                    aria-pressed="${state.service === id}">
-                <span class="service-icon ${svc.color}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svc.icon}</svg>
-                </span>
-                <strong>${svc.name}</strong>
-                <p>${svc.desc}</p>
-                <span class="service-hours">${describeDays(svc.days)} · ${describeRanges(svc.ranges)}</span>
-            </button>
-        `).join("");
-    }
-
-    $("serviceOptions").addEventListener("click", (event) => {
-        const button = event.target.closest(".service-option");
-        if (button) selectService(button.dataset.service);
-    });
-
-    function selectService(id) {
-
-        if (!SERVICES[id]) return;
-
-        state.service = id;
-        state.date = "";
-        state.time = "";
-
-        // Keep the chosen provider only if they offer this service too
-        if (state.pref.kind !== "any" && candidates().length === 0) state.pref = { kind: "any" };
-
-        renderAll();
-    }
-
-
-    /* =========================================
-       STEP 2: PROVIDER
-    ========================================= */
-
-    function workDays(staff) {
-        const days = [0, 1, 2, 3, 4, 5, 6].filter((d) => rangesFor(staff, d).length > 0);
-        return days.length ? describeDays(days) : "No hours set";
-    }
-
-    function renderProviders() {
-
-        const box = $("providerOptions");
-
-        if (!state.service) {
-            box.innerHTML = '<p class="hint">Choose a service first to see who can help you.</p>';
-            return;
-        }
-
-        if (!staffLoaded) {
-            box.innerHTML = '<p class="hint">Loading the clinic team...</p>';
-            return;
-        }
-
-        const team = eligibleStaff(staffMap, state.service, { kind: "any" })
-            .sort((a, b) => staffDisplayName(a).localeCompare(staffDisplayName(b)));
-
-        if (team.length === 0) {
-            box.innerHTML = '<p class="hint">No clinic staff offer this service yet. Please check back later or contact the clinic.</p>';
-            return;
-        }
-
-        const types = Object.keys(STAFF_TYPES).filter((type) => team.some((s) => s.type === type));
-        const selected = (kind, value) =>
-            state.pref.kind === kind && (kind === "any" || value === (state.pref.type || state.pref.staffId));
-
-        const option = (pref, title, sub, isOn) => `
-            <button type="button" class="provider-type${isOn ? " selected" : ""}" data-pref="${pref}" aria-pressed="${isOn}">
-                <strong>${title}</strong>
-                <span>${sub}</span>
-            </button>`;
-
-        box.innerHTML = `
-            <div class="provider-types">
-                ${option("any", "Any available", "Fastest: the clinic assigns whoever is free", selected("any"))}
-                ${types.map((type) => {
-                    const count = team.filter((s) => s.type === type).length;
-                    return option(`type:${type}`, STAFF_TYPES[type].label,
-                        `${count} ${(count === 1 ? STAFF_TYPES[type].label : STAFF_TYPES[type].plural).toLowerCase()} on the team`,
-                        selected("type", type));
-                }).join("")}
-            </div>
-
-            <h4 class="provider-subhead">Or choose someone you've seen before</h4>
-
-            <div class="provider-people">
-                ${team.map((s) => {
-                    const on = selected("person", s.id);
-                    return `
-                        <button type="button" class="person-card${on ? " selected" : ""}" data-pref="person:${escapeHtml(s.id)}" aria-pressed="${on}">
-                            <span class="person-avatar ${escapeHtml(s.type)}">${avatarInner(staffPhotos[s.id], s.name)}</span>
-                            <span class="person-text">
-                                <strong>${escapeHtml(staffDisplayName(s))}</strong>
-                                <small>${escapeHtml(staffTypeLabel(s.type))}${s.specialty ? ` · ${escapeHtml(s.specialty)}` : ""} · ${escapeHtml(workDays(s))}</small>
-                                ${s.bio ? `<small class="person-bio">${escapeHtml(s.bio)}</small>` : ""}
-                            </span>
-                        </button>`;
-                }).join("")}
-            </div>
-        `;
-    }
-
-    $("providerOptions").addEventListener("click", (event) => {
-
-        const button = event.target.closest("[data-pref]");
-        if (!button) return;
-
-        const [kind, value] = button.dataset.pref.split(":");
-
-        state.pref = kind === "type" ? { kind, type: value }
-            : kind === "person" ? { kind, staffId: value }
-            : { kind: "any" };
-
-        // Keep the date if it still has open times with this choice
-        state.time = "";
-        if (state.date && openTimes(state.date).length === 0) state.date = "";
-
-        renderAll();
+    $("reason").addEventListener("change", (event) => {
+        state.reason = event.target.value;
+        updateSummary();
     });
 
 
     /* =========================================
-       STEP 3: DATES
+       STEP 2: DATES
     ========================================= */
 
     function renderDays() {
 
         const list = $("dayList");
 
-        if (!state.service) {
-            list.innerHTML = '<p class="hint">Choose a service first to see the dates available.</p>';
-            return;
-        }
-
-        if (!staffLoaded || !bookingsLoaded) {
+        if (!slotsLoaded) {
             list.innerHTML = '<p class="hint">Checking availability...</p>';
             return;
         }
@@ -364,9 +208,9 @@ document.addEventListener("DOMContentLoaded", () => {
             day.setDate(today.getDate() + i);
 
             const key = toDateKey(day);
-            const working = workingTimes(key).filter((t) => !isSlotPast(key, t));
-            const open = working.length > 0 && openTimes(key).length > 0;
-            const full = working.length > 0 && !open;
+            const clinicDay = isClinicDay(key, closures);
+            const open = openSlots(key, slots[key], closures).length > 0;
+            const full = clinicDay && !open && DAY_SLOTS.some((t) => !isSlotPast(key, t));
             const selected = key === state.date;
 
             if (open) anyOpen = true;
@@ -375,20 +219,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? "Today"
                 : day.toLocaleDateString("en-US", { weekday: "short" });
 
+            const note = closures[key] ? "Closed"
+                : full ? "Full"
+                : day.toLocaleDateString("en-US", { month: "short" });
+
             html += `
                 <button type="button"
                         class="day-btn${selected ? " selected" : ""}"
                         data-date="${key}"
                         aria-pressed="${selected}"
-                        ${open ? "" : `disabled title="${full ? "Fully booked" : "Not available"}"`}>
+                        ${open ? "" : `disabled title="${closures[key] ? escapeHtml(`Clinic closed: ${closures[key]}`) : full ? "Fully booked" : "Clinic closed"}"`}>
                     <span class="day-name">${weekday}</span>
                     <span class="day-num">${day.getDate()}</span>
-                    <span class="day-month">${full ? "Full" : day.toLocaleDateString("en-US", { month: "short" })}</span>
+                    <span class="day-month">${escapeHtml(note)}</span>
                 </button>
             `;
         }
 
-        list.innerHTML = (anyOpen ? "" : '<p class="hint wide">No open times in the next two weeks for this choice. Try "Any available" or another provider.</p>') + html;
+        list.innerHTML = (anyOpen ? "" : '<p class="hint wide">No open slots in the next two weeks. Please check again later.</p>') + html;
     }
 
     $("dayList").addEventListener("click", (event) => {
@@ -406,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
-       STEP 4: TIMES
+       STEP 3: TIMES
     ========================================= */
 
     function renderSlots() {
@@ -416,32 +264,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         meta.textContent = "";
 
-        if (!state.service) {
-            list.innerHTML = '<p class="hint">Choose a service to continue.</p>';
-            return;
-        }
-
         if (!state.date) {
             list.innerHTML = '<p class="hint">Pick a date to see the available times.</p>';
             return;
         }
 
-        const times = workingTimes(state.date);
-        const showCount = state.pref.kind !== "person";
-
         let available = 0;
 
         const button = (time) => {
 
-            const free = freeAt(state.date, time).length;
+            const taken = isTaken(slots[state.date], time);
             const past = isSlotPast(state.date, time);
-            const unavailable = past || free === 0;
+            const unavailable = taken || past;
 
             if (!unavailable) available++;
-
-            const note = past ? ""
-                : free === 0 ? "<small class=\"full\">Taken</small>"
-                : showCount ? `<small>${free} open</small>` : "";
 
             return `
                 <button type="button"
@@ -450,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         aria-pressed="${state.time === time}"
                         ${unavailable ? "disabled" : ""}>
                     ${formatTime(time)}
-                    ${note}
+                    ${taken ? '<small class="full">Taken</small>' : ""}
                 </button>
             `;
         };
@@ -460,8 +296,9 @@ document.addEventListener("DOMContentLoaded", () => {
             : "";
 
         const html =
-            group("Morning", times.filter((t) => toMinutes(t) < 12 * 60)) +
-            group("Afternoon", times.filter((t) => toMinutes(t) >= 12 * 60));
+            group("Morning", DAY_SLOTS.filter((t) => toMinutes(t) < 12 * 60)) +
+            group("Afternoon", DAY_SLOTS.filter((t) => toMinutes(t) >= 12 * 60 && toMinutes(t) < 17 * 60)) +
+            group("Evening", DAY_SLOTS.filter((t) => toMinutes(t) >= 17 * 60));
 
         if (available === 0) {
             list.innerHTML = '<p class="hint">No times are available on this date. Please pick another day.</p>' + html;
@@ -469,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         list.innerHTML = html;
-        meta.textContent = `${available} time${available === 1 ? "" : "s"} available`;
+        meta.textContent = `${available} slot${available === 1 ? "" : "s"} open`;
     }
 
     $("slotList").addEventListener("click", (event) => {
@@ -486,111 +323,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
-       STEP 5: REASON + MEDICAL HISTORY
-    ========================================= */
-
-   
-const reasonSelect = $("reason");
-const otherReason = $("otherReason");
-
-function renderReasons(items) {
-    const previous = reasonSelect.value;
-
-    reasonSelect.replaceChildren(
-        new Option("Select a reason", "")
-    );
-
-    items.forEach(item => {
-        reasonSelect.add(
-            new Option(item.name, item.name)
-        );
-    });
-
-    if ([...reasonSelect.options].some(
-        option => option.value === previous
-    )) {
-        reasonSelect.value = previous;
-    }
-
-    reasonSelect.dispatchEvent(
-        new Event("change")
-    );
-}
-
-reasonSelect.addEventListener("change", () => {
-    $("otherReasonWrap").hidden =
-        reasonSelect.value !== "Other";
-});
-
-otherReason.addEventListener("input", () => {
-    $("reasonCount").textContent =
-        `${otherReason.value.length} / ${MAX_REASON}`;
-});
-
-renderReasons(
-    DEFAULT_REASONS.map(name => ({ name }))
-);
-
-onValue(
-    ref(db, "bookingReasons"),
-    snapshot => renderReasons(
-        normalizeReasons(snapshot.val())
-    ),
-    error => console.warn(
-        "Could not load booking reasons", error
-    )
-);
-
-
-    $("mhConditions").innerHTML = CONDITIONS.map((name, i) => `
-        <label class="check-row">
-            <input type="checkbox" value="${escapeHtml(name)}" id="mhc${i}">
-            <span>${escapeHtml(name)}</span>
-        </label>
-    `).join("");
-
-    const HISTORY_FIELDS = {
-        allergies: "mhAllergies",
-        medications: "mhMedications",
-        otherCondition: "mhOther",
-        surgeries: "mhSurgeries",
-        notes: "mhNotes"
-    };
-
-    function collectHistory() {
-
-        const history = {};
-
-        Object.entries(HISTORY_FIELDS).forEach(([field, id]) => {
-            const value = $(id).value.trim();
-            if (value) history[field] = value;
-        });
-
-        const conditions = [...$("mhConditions").querySelectorAll("input:checked")].map((i) => i.value);
-        if (conditions.length) history.conditions = conditions;
-
-        return hasMedicalHistory(history) ? history : null;
-    }
-
-    function fillHistory(history) {
-
-        if (!history) return;
-
-        Object.entries(HISTORY_FIELDS).forEach(([field, id]) => {
-            $(id).value = history[field] || "";
-        });
-
-        const chosen = new Set(listOf(history.conditions));
-
-        $("mhConditions").querySelectorAll("input").forEach((input) => {
-            input.checked = chosen.has(input.value);
-        });
-
-        $("historyStatus").textContent = "Filled in from your profile · check that it's still correct";
-    }
-
-
-    /* =========================================
        SUMMARY
     ========================================= */
 
@@ -600,20 +332,9 @@ onValue(
         el.classList.toggle("empty", !value);
     }
 
-    function providerText() {
-
-        if (state.pref.kind === "person") return staffDisplayName(staffMap[state.pref.staffId]);
-        if (state.pref.kind === "type") return `Any ${STAFF_TYPES[state.pref.type].label.toLowerCase()} (assigned for you)`;
-
-        return "Any available (assigned for you)";
-    }
-
     function updateSummary() {
 
-        const service = SERVICES[state.service];
-
-        setSummary("sumService", service ? service.name : "");
-        setSummary("sumProvider", providerText());
+        setSummary("sumReason", state.reason);
         setSummary("sumDate", state.date ? formatDateLong(state.date) : "");
         setSummary("sumTime", state.time ? formatRange(state.time) : "");
 
@@ -622,14 +343,12 @@ onValue(
             : "Loading...";
 
         $("confirmBtn").disabled =
-            !(state.service && state.date && state.time) || state.submitting || !currentUser;
+            !(state.reason && state.date && state.time) || state.submitting || !currentUser;
 
         $("confirmBtn").textContent = state.submitting ? "Sending..." : "Send Request";
     }
 
-    function renderAll() {
-        renderServices();
-        renderProviders();
+    function renderBooking() {
         renderDays();
         renderSlots();
         updateSummary();
@@ -638,34 +357,49 @@ onValue(
 
     /* =========================================
        SEND REQUEST
-       The appointment and the provider's time slot are written in one
-       update, and the database rules refuse a slot that's already
-       taken, so two patients can never get the same provider + time.
+       The appointment and its time slot are written in one update,
+       and the database rules refuse a slot that's already taken, so
+       two people can never get the same 30 minutes.
     ========================================= */
+
+    function limitProblem() {
+
+        const upcoming = myAppointments.filter((a) => isActive(a) && startOf(a) > new Date());
+
+        if (upcoming.some((a) => a.date === state.date && a.time === state.time)) {
+            return "You already have an appointment at that time.";
+        }
+
+        if (upcoming.filter((a) => a.date === state.date).length >= BOOKING_LIMITS.perDay) {
+            return BOOKING_LIMITS.perDay === 1
+                ? "You already have an appointment on that day. Cancel it first if you need a different time."
+                : `You can have at most ${BOOKING_LIMITS.perDay} appointments on one day.`;
+        }
+
+        if (upcoming.length >= BOOKING_LIMITS.upcoming) {
+            return `You already have ${upcoming.length} upcoming appointments. Please wait for them or cancel one before booking another.`;
+        }
+
+        return "";
+    }
 
     async function submitBooking() {
 
         if (!currentUser || state.submitting) return;
-        if (!(state.service && state.date && state.time)) return;
-
-        const service = SERVICES[state.service];
+        if (!(state.reason && state.date && state.time)) return;
 
         // The chosen time may have passed while the page was open
         if (isSlotPast(state.date, state.time)) {
             toast("That time has already passed. Please choose another.", "error");
             state.time = "";
-            renderAll();
+            renderBooking();
             return;
         }
 
-        // The patient can't be in two places at once
-        if (myAppointments.some((a) => isActive(a) && a.date === state.date && a.time === state.time)) {
-            toast("You already have an appointment at that time.", "error");
-            return;
-        }
+        const problem = limitProblem();
 
-        if (myAppointments.some((a) => isActive(a) && a.date === state.date && a.service === state.service)) {
-            toast(`You already have a ${service.name} appointment on that day.`, "error");
+        if (problem) {
+            toast(problem, "error");
             return;
         }
 
@@ -674,102 +408,46 @@ onValue(
 
         try {
 
-            // Fresh copy of who's booked that day
-            const daySnap = await get(ref(db, `bookings/${state.date}`));
-            const dayBookings = daySnap.val() || {};
-
-            let free = freeStaffAt(candidates(), dayBookings, state.date, state.time);
-
-            if (free.length === 0) {
-                toast("Sorry, that time was just taken. Please pick another.", "error");
-                state.time = "";
-                return;
-            }
-
-            const history = collectHistory();
             const newRef = push(ref(db, "appointments"));
-            let saved = null;
 
-            // If someone grabs the same provider a moment before us, try the next one
-            while (free.length && !saved) {
-
-                const staff = state.pref.kind === "person" ? free[0] : pickStaff(free, dayBookings);
-                free = free.filter((s) => s.id !== staff.id);
-
-                const record = {
-                    uid: currentUser.uid,
-                    patientName: patient.name,
-                    patientId: patient.id,
-                    patientPhone: patient.phone,
-                    patientEmail: patient.email,
-                    patientRole: PAGE_ROLE,
-                    service: state.service,
-                    serviceName: service.name,
-                    date: state.date,
-                    time: state.time,
-                    
-                    reason: reasonSelect.value === "Other"
-                    ? otherReason.value.trim()
-                    : reasonSelect.value,
-
-                    medicalHistory: history,
-                    providerPref: state.pref.kind === "type" ? state.pref.type : state.pref.kind,
-                    requestedStaffId: state.pref.kind === "person" ? state.pref.staffId : null,
-                    staffId: staff.id,
-                    staffName: staffDisplayName(staff),
-                    staffType: staff.type || "",
-                    staffEmail: staff.email || "",
-                    status: "pending",
-                    createdAt: serverTimestamp(),
-                    history: {
-                        [push(ref(db, `appointments/${newRef.key}/history`)).key]: {
-                            action: "booked",
-                            by: currentUser.uid,
-                            byRole: "patient",
-                            byName: patient.name,
-                            at: serverTimestamp(),
-                            note: `Assigned to ${staffDisplayName(staff)}`
-                        }
+            const record = {
+                uid: currentUser.uid,
+                patientName: patient.name,
+                patientId: patient.id,
+                patientPhone: patient.phone,
+                patientEmail: patient.email,
+                patientRole: PAGE_ROLE,
+                reason: state.reason,
+                date: state.date,
+                time: state.time,
+                status: "pending",
+                createdAt: serverTimestamp(),
+                history: {
+                    [push(ref(db, `appointments/${newRef.key}/history`)).key]: {
+                        action: "booked",
+                        by: currentUser.uid,
+                        byRole: "patient",
+                        byName: patient.name,
+                        at: serverTimestamp(),
+                        note: state.reason
                     }
-                };
-
-                try {
-                    await update(ref(db), {
-                        [`appointments/${newRef.key}`]: record,
-                        [`bookings/${state.date}/${staff.id}/${slotKey(state.time)}`]: newRef.key
-                    });
-                    saved = { id: newRef.key, ...record };
-                } catch (error) {
-                    if (!isDenied(error)) throw error;
-                    console.warn("Slot just taken, trying another provider:", error);
                 }
-            }
+            };
 
-            if (!saved) {
-                toast("Sorry, that time was just taken. Please pick another.", "error");
-                state.time = "";
-                return;
-            }
+            // One write: if the slot was just taken, the rules refuse all of it
+            await update(ref(db), {
+                [`appointments/${newRef.key}`]: record,
+                [`timeSlots/${state.date}/${slotKey(state.time)}`]: newRef.key
+            });
 
-            // Remember the medical history for next time (doesn't block the booking)
-            if (history && $("mhSave").checked) {
-                set(ref(db, `medicalHistory/${currentUser.uid}`), { ...history, updatedAt: serverTimestamp() })
-                    .catch((error) => console.warn("Could not save medical history:", error));
-            }
+            notifyNewRequest({ id: newRef.key, ...record });
 
-            notifyNewRequest(saved);
+            highlightId = newRef.key;
 
-            highlightId = saved.id;
+            toast("Request sent! You'll get an email once the clinic approves it.", "success");
 
-            toast(`Request sent to ${saved.staffName}. You'll get an email once it's approved.`, "success");
-
-            // Reset the form (medical history stays filled in for next time)
-            state.service = "";
-            state.pref = { kind: "any" };
             state.date = "";
             state.time = "";
-            $("reason").value = "";
-            $("reasonCount").textContent = `0 / ${MAX_REASON}`;
 
             activeFilter = "upcoming";
             showTab("mine");
@@ -784,17 +462,17 @@ onValue(
 
             console.error("Booking error:", error);
 
-            toast(
-                isDenied(error)
-                    ? "The request was refused. Your account may not have a student/employee profile yet."
-                    : "Sorry, we couldn't send your request. Please try again.",
-                "error"
-            );
+            if (isDenied(error)) {
+                toast("Sorry, that slot was just taken (or your account has no student/employee profile). Please pick another time.", "error");
+                state.time = "";
+            } else {
+                toast("Sorry, we couldn't send your request. Please try again.", "error");
+            }
 
         } finally {
 
             state.submitting = false;
-            renderAll();
+            renderBooking();
         }
     }
 
@@ -802,7 +480,7 @@ onValue(
 
 
     /* =========================================
-       MY APPOINTMENTS (live)
+       MY APPOINTMENTS (live) + BOOKING HISTORY
     ========================================= */
 
     function bucketOf(a) {
@@ -818,17 +496,16 @@ onValue(
     function stateNote(a, current) {
 
         const t = reminderTimes(a);
-        const who = escapeHtml(a.staffName || "the clinic");
 
         switch (current) {
             case "pending":
-                return `<p class="appt-note">Waiting for ${who} to approve your request.</p>`;
+                return '<p class="appt-note">Waiting for the clinic to approve your request.</p>';
             case "approved":
                 return `<p class="appt-note">Approved. We'll ask you to confirm you're still coming on ${escapeHtml(formatMoment(t.first))}.</p>`;
             case "awaiting":
                 return `
                     <div class="confirm-box">
-                        <p><strong>Are you still coming?</strong> Please confirm by ${escapeHtml(formatMoment(t.deadline))}, or this appointment will be cancelled so someone else can use the time.</p>
+                        <p><strong>Are you still coming?</strong> Please confirm by ${escapeHtml(formatMoment(t.deadline))}, or this appointment will be cancelled so someone else can use the slot.</p>
                         <div class="confirm-actions">
                             <button type="button" class="btn-primary small" data-attend="${escapeHtml(a.id)}">Yes, I'll be there</button>
                             <button type="button" class="link-btn danger" data-cancel="${escapeHtml(a.id)}">No, cancel it</button>
@@ -856,11 +533,9 @@ onValue(
         }
     }
 
-    // showHistory adds the timeline (History filter)
+    // showHistory adds the timeline (Booking History filter)
     function appointmentCard(a, bucket, showHistory = false) {
 
-        const service = SERVICES[a.service];
-        const name = service ? service.name : (a.serviceName || "Appointment");
         const current = stateOf(a);
 
         const day = a.date ? parseDateKey(a.date) : null;
@@ -875,8 +550,8 @@ onValue(
 
         const action = canCancel
             ? `<button type="button" class="link-btn danger" data-cancel="${escapeHtml(a.id)}">Cancel</button>`
-            : (bucket !== "upcoming" && service
-                ? `<button type="button" class="link-btn" data-rebook="${escapeHtml(a.service)}">Book again</button>`
+            : (bucket !== "upcoming"
+                ? `<button type="button" class="link-btn" data-rebook="${escapeHtml(reasonOf(a))}">Book again</button>`
                 : "");
 
         return `
@@ -887,9 +562,8 @@ onValue(
                 </div>
 
                 <div class="appt-info">
-                    <h4>${escapeHtml(name)}</h4>
+                    <h4>${escapeHtml(reasonOf(a))}</h4>
                     <p class="appt-when">${when}</p>
-                    ${a.staffName ? `<p class="appt-provider">with ${escapeHtml(a.staffName)}${a.staffType ? ` · ${escapeHtml(staffTypeLabel(a.staffType))}` : ""}</p>` : ""}
 
                     ${stateNote(a, current)}
 
@@ -898,14 +572,6 @@ onValue(
                             <span>How to prepare</span>
                             <p>${escapeHtml(a.instructions)}</p>
                         </div>` : ""}
-
-                    ${a.reason ? `<p class="appt-reason"><strong>Reason:</strong> ${escapeHtml(a.reason)}</p>` : ""}
-
-                    ${a.medicalHistory ? `
-                        <details class="appt-history">
-                            <summary>Medical history you shared</summary>
-                            ${medicalHistoryHtml(a.medicalHistory)}
-                        </details>` : ""}
 
                     ${showHistory ? historyTimelineHtml(a) : ""}
                 </div>
@@ -926,15 +592,14 @@ onValue(
 
         myAppointments.forEach((a) => {
             groups[bucketOf(a)].push(a);
-            groups.history.push(a);   // History = every appointment, with its timeline
+            groups.history.push(a);   // Booking history = every appointment, with its timeline
         });
-
-        groups.history.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
 
         // Soonest first for upcoming, most recent first for the rest
         groups.upcoming.sort((a, b) => startOf(a) - startOf(b));
         groups.past.sort((a, b) => startOf(b) - startOf(a));
         groups.cancelled.sort((a, b) => startOf(b) - startOf(a));
+        groups.history.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
 
         $("countUpcoming").textContent = groups.upcoming.length;
         $("countPast").textContent = groups.past.length;
@@ -959,7 +624,7 @@ onValue(
                 upcoming: ["No upcoming appointments", "When you request a visit, it will show up here."],
                 past: ["No past appointments", "Your completed and missed visits will appear here."],
                 cancelled: ["Nothing cancelled or declined", "Cancelled and declined requests will appear here."],
-                history: ["No history yet", "Every request, approval, reminder and cancellation is recorded here."]
+                history: ["No booking history yet", "Every request, approval, reminder and cancellation is recorded here."]
             }[activeFilter];
 
             $("appointmentList").innerHTML = `
@@ -1028,7 +693,7 @@ onValue(
 
             try {
                 await confirmAttendance(a, actor());
-                toast("Thanks! Your provider knows you're coming.", "success");
+                toast("Thanks! The clinic knows you're coming.", "success");
             } catch (error) {
                 console.error("Confirm error:", error);
                 toast("We couldn't save that. Please try again.", "error");
@@ -1043,7 +708,8 @@ onValue(
         }
 
         if (rebook) {
-            selectService(rebook.dataset.rebook);
+            if (reasons.some((r) => r.name === rebook.dataset.rebook)) state.reason = rebook.dataset.rebook;
+            renderReasons();
             showTab("book");
             window.scrollTo({ top: 0, behavior: "smooth" });
             return;
@@ -1067,14 +733,10 @@ onValue(
 
         pendingCancel = a;
 
-        const service = SERVICES[a.service];
-        const name = service ? service.name : (a.serviceName || "appointment");
-
         const hoursAway = (startOf(a) - new Date()) / 36e5;
 
         $("cancelDetail").innerHTML =
-            `<strong>${escapeHtml(name)}</strong><br>${formatDateLong(a.date)} at ${formatTime(a.time)}` +
-            (a.staffName ? ` with ${escapeHtml(a.staffName)}` : "") +
+            `<strong>${escapeHtml(reasonOf(a))}</strong><br>${formatDateLong(a.date)} at ${formatTime(a.time)}` +
             (hoursAway < 24
                 ? '<span class="warn">This appointment is less than a day away. Please cancel only if you really can\'t make it.</span>'
                 : "");
@@ -1155,37 +817,59 @@ onValue(
        LIVE DATA
     ========================================= */
 
-    function watchBookings() {
+    function watchClinic() {
 
         const today = new Date();
         const last = new Date();
         last.setDate(today.getDate() + BOOKING_WINDOW_DAYS);
 
-        onValue(
-            query(ref(db, "bookings"), orderByKey(), startAt(toDateKey(today)), endAt(toDateKey(last))),
-            (snapshot) => {
+        const range = (path) =>
+            query(ref(db, path), orderByKey(), startAt(toDateKey(today)), endAt(toDateKey(last)));
 
-                bookings = snapshot.val() || {};
-                bookingsLoaded = true;
+        let gotSlots = false;
+        let gotClosures = false;
 
-                // Someone else took the time this patient was looking at
-                if (state.time && !state.submitting && freeAt(state.date, state.time).length === 0) {
-                    toast("The time you picked was just taken. Please choose another.", "error");
-                    state.time = "";
-                }
+        const ready = () => {
+            if (!gotSlots || !gotClosures) return;
 
-                renderDays();
-                renderSlots();
-                updateSummary();
-            },
-            (error) => {
-                console.warn("Could not watch availability:", error);
-                bookingsLoaded = true;
-                renderDays();
-                renderSlots();
-                toast("Couldn't check live availability. A taken time may be refused when you send.", "error");
+            slotsLoaded = true;
+
+            // Someone else took the slot this patient was looking at
+            if (state.time && !state.submitting && (isTaken(slots[state.date], state.time) || closures[state.date])) {
+                toast("The time you picked was just taken. Please choose another.", "error");
+                state.time = "";
             }
-        );
+
+            renderBooking();
+        };
+
+        const failed = (what) => (error) => {
+            console.warn(`Could not watch ${what}:`, error);
+            gotSlots = true;
+            gotClosures = true;
+            ready();
+            toast("Couldn't check live availability. A taken slot may be refused when you send.", "error");
+        };
+
+        onValue(range("timeSlots"), (snapshot) => {
+            slots = snapshot.val() || {};
+            gotSlots = true;
+            ready();
+        }, failed("time slots"));
+
+        onValue(range("clinicClosures"), (snapshot) => {
+            closures = snapshot.val() || {};
+            gotClosures = true;
+            ready();
+        }, failed("clinic closures"));
+
+        onValue(ref(db, "bookingReasons"), (snapshot) => {
+            reasons = normalizeReasons(snapshot.val());
+            renderReasons();
+        }, (error) => {
+            console.warn("Could not load booking reasons:", error);
+            renderReasons();
+        });
     }
 
     function watchAppointments() {
@@ -1240,12 +924,6 @@ onValue(
             return;
         }
 
-        // The admin and clinic staff have their own pages
-        if (user.uid === ADMIN_UID) {
-            window.location.replace("../admin/admin.html");
-            return;
-        }
-
         currentUser = user;
 
         patient = {
@@ -1278,18 +956,16 @@ onValue(
 
             } else {
 
-                const [otherSnap, staffSnap] = await Promise.all([
-                    get(ref(db, `${otherFolder}/${user.uid}`)),
-                    get(ref(db, `staff/${user.uid}`)).catch(() => null)
-                ]);
-
-                if (staffSnap?.exists()) {
-                    window.location.replace("../staff/staff.html");
+                // Clinic staff have their own page
+                if (await isClinicAdmin(user)) {
+                    window.location.replace("../admin/admin.html");
                     return;
                 }
 
                 // Not found here: maybe they belong on the other page
-                if (otherSnap.exists()) {
+                const otherSnap = await get(ref(db, `${otherFolder}/${user.uid}`)).catch(() => null);
+
+                if (otherSnap?.exists()) {
                     window.location.replace(ROLE.other);
                     return;
                 }
@@ -1305,53 +981,23 @@ onValue(
 
         updateSummary();
         watchAppointments();
-        watchBookings();
-
-        // The clinic team + saved medical history
-        try {
-            const [staffSnap, historySnap] = await Promise.all([
-                get(ref(db, "staff")),
-                get(ref(db, `medicalHistory/${user.uid}`)).catch(() => null)
-            ]);
-
-            staffMap = staffSnap.val() || {};
-            fillHistory(historySnap?.val());
-
-        } catch (error) {
-            console.error("Could not load the clinic team:", error);
-            toast("Couldn't load the clinic team. Please reload the page.", "error");
-        }
-
-        staffLoaded = true;
-
-        // Photos load after the list so booking isn't held up by them
-        loadAvatars(Object.keys(staffMap)).then((photos) => {
-            staffPhotos = photos;
-            renderProviders();
-        });
-
-        // ?service=dental arrives before the team loads: re-check the choice
-        if (state.service && state.pref.kind !== "any" && candidates().length === 0) state.pref = { kind: "any" };
-
-        renderAll();
+        watchClinic();
     });
 
 
     /* =========================================
        START
-       ?service=dental   opens the booking tab with that service chosen
        ?tab=mine         opens My Appointments
        ?appt=ID          opens My Appointments on that appointment
     ========================================= */
 
-    renderAll();
+    renderReasons();
+    renderBooking();
 
     const params = new URLSearchParams(location.search);
 
     if (params.get("tab") === "mine" || params.get("appt")) {
         showTab("mine", false);
-    } else if (params.get("service") && SERVICES[params.get("service")]) {
-        selectService(params.get("service"));
     }
 
 });

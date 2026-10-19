@@ -98,7 +98,7 @@
             <div>
                 <span class="page-label">APPOINTMENTS</span>
                 <h2>Appointments</h2>
-                <p>Request a visit with a clinic doctor or nurse and keep track of your appointments.</p>
+                <p>Request a clinic appointment and keep track of your bookings.</p>
             </div>
 
             <a href="../dashboard/dashboard.html" class="back-btn">← Back to Home</a>
@@ -128,127 +128,47 @@
 
                 <div class="book-steps">
 
-                    <!-- STEP 1: SERVICE -->
+                    <!-- STEP 1: REASON -->
                     <section class="card">
                         <div class="card-header">
                             <span class="section-label">STEP 1</span>
-                            <h3>Choose a service</h3>
+                            <h3>Reason for your visit</h3>
+                            <p>Choose the one that fits best.</p>
                         </div>
 
-                        <div class="service-options" id="serviceOptions"></div>
+                        <div class="form-group">
+                            <label for="reason">Reason</label>
+                            <select id="reason" class="reason-select">
+                                <option value="">Loading reasons...</option>
+                            </select>
+                        </div>
                     </section>
 
 
-                    <!-- STEP 2: PROVIDER -->
+                    <!-- STEP 2: DATE -->
                     <section class="card">
                         <div class="card-header">
                             <span class="section-label">STEP 2</span>
-                            <h3>Choose your provider</h3>
-                            <p>Let the clinic assign whoever is free, pick a doctor or nurse, or choose someone who already knows your history.</p>
-                        </div>
-
-                        <div id="providerOptions"></div>
-                    </section>
-
-
-                    <!-- STEP 3: DATE -->
-                    <section class="card">
-                        <div class="card-header">
-                            <span class="section-label">STEP 3</span>
                             <h3>Pick a date</h3>
-                            <p>Appointments can be booked up to two weeks ahead.</p>
+                            <p id="hoursNote">The clinic takes appointments Monday to Saturday. You can book up to two weeks ahead.</p>
                         </div>
 
                         <div class="day-list" id="dayList"></div>
                     </section>
 
 
-                    <!-- STEP 4: TIME -->
+                    <!-- STEP 3: TIME -->
                     <section class="card">
                         <div class="card-header split">
                             <div>
-                                <span class="section-label">STEP 4</span>
+                                <span class="section-label">STEP 3</span>
                                 <h3>Select a time</h3>
+                                <p>Each slot is 30 minutes, one patient per slot.</p>
                             </div>
                             <span class="slot-meta" id="slotMeta"></span>
                         </div>
 
                         <div id="slotList"></div>
-                    </section>
-
-
-                    <!-- STEP 5: DETAILS -->
-                    <section class="card">
-                        <div class="card-header">
-                            <span class="section-label">STEP 5</span>
-                            <h3>Reason and medical history</h3>
-                            <p>Both are optional, but they help your provider prepare for your visit.</p>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="reason">Reason for your visit</label>
-                           <select id="reason" aria-label="Reason for your visit">
-                                        <option value="">Select a reason</option>
-                            </select>
-
-                                <div id="otherReasonWrap" hidden>
-                                 <label for="otherReason">Please specify</label>
-                            <textarea
-                                id="otherReason"
-                                maxlength="300"
-                                placeholder="Briefly describe your reason">
-                            </textarea>
-                            <span class="char-count" id="reasonCount">
-                                        0 / 300
-                                </span>
-                                </div>
-                        </div>
-
-                        <details class="history-box" id="historyBox">
-
-                            <summary>
-                                <span class="history-title">
-                                    <strong>Medical history</strong>
-                                    <small id="historyStatus">Optional · only clinic staff can see this</small>
-                                </span>
-                            </summary>
-
-                            <div class="history-fields">
-
-                                <div class="form-group">
-                                    <label for="mhAllergies">Allergies (medicine, food or others)</label>
-                                    <input type="text" id="mhAllergies" maxlength="200" placeholder="e.g. Penicillin, shrimp. Write “None” if you have none">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="mhMedications">Medicines you take regularly</label>
-                                    <input type="text" id="mhMedications" maxlength="200" placeholder="e.g. Salbutamol inhaler as needed">
-                                </div>
-
-                                <fieldset class="form-group">
-                                    <legend>Existing conditions</legend>
-                                    <div class="check-grid" id="mhConditions"></div>
-                                    <input type="text" id="mhOther" maxlength="120" placeholder="Other condition (optional)">
-                                </fieldset>
-
-                                <div class="form-group">
-                                    <label for="mhSurgeries">Past surgeries or hospital stays</label>
-                                    <input type="text" id="mhSurgeries" maxlength="200" placeholder="e.g. Appendectomy, 2021">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="mhNotes">Anything else the clinic should know</label>
-                                    <textarea id="mhNotes" maxlength="300" placeholder="e.g. Family history of diabetes"></textarea>
-                                </div>
-
-                                <label class="check-row">
-                                    <input type="checkbox" id="mhSave" checked>
-                                    <span>Save to my profile so it's filled in next time</span>
-                                </label>
-
-                            </div>
-
-                        </details>
                     </section>
 
                 </div>
@@ -264,12 +184,8 @@
 
                     <dl class="summary-list">
                         <div class="summary-row">
-                            <dt>Service</dt>
-                            <dd id="sumService" class="empty">Not selected</dd>
-                        </div>
-                        <div class="summary-row">
-                            <dt>Provider</dt>
-                            <dd id="sumProvider">Any available</dd>
+                            <dt>Reason</dt>
+                            <dd id="sumReason" class="empty">Not selected</dd>
                         </div>
                         <div class="summary-row">
                             <dt>Date</dt>
@@ -290,9 +206,9 @@
                     </button>
 
                     <p class="summary-note">
-                        Your provider reviews the request and you'll get an email once it's approved.
+                        The clinic reviews your request and you'll get an email once it's approved.
                         A day before the visit we'll ask you to confirm you're still coming.
-                        If you don't, the appointment is cancelled so others can use the time.
+                        If you don't, the appointment is cancelled so others can use the slot.
                     </p>
 
                 </aside>
@@ -309,7 +225,7 @@
                 <button type="button" class="filter active" data-filter="upcoming">Upcoming <span id="countUpcoming">0</span></button>
                 <button type="button" class="filter" data-filter="past">Past <span id="countPast">0</span></button>
                 <button type="button" class="filter" data-filter="cancelled">Cancelled / Declined <span id="countCancelled">0</span></button>
-                <button type="button" class="filter" data-filter="history">History <span id="countHistory">0</span></button>
+                <button type="button" class="filter" data-filter="history">Booking History <span id="countHistory">0</span></button>
             </div>
 
             <div id="appointmentList" aria-live="polite">

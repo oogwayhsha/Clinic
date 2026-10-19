@@ -1,12 +1,9 @@
 /* ============================================================
    STAT CARDS AND TOOLBARS
-   Shared by the admin page and the staff dashboard. These used to
-   live in admin/admin.css, which meant staff.html had to load
-   another role's stylesheet to look right — so editing the admin
-   page could silently change the nurse page.
+   Used by the admin page (every clinic staff account).
 
    Relies on the variables in appointment/appointments.css, which
-   both pages already load.
+   the admin page loads first.
    ============================================================ */
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }

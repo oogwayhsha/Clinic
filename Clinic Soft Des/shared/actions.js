@@ -3,24 +3,24 @@
 // Every status change goes through here so the database, the
 // in-app notifications and the emails always agree.
 //
-// actor = { uid, name, role: "patient" | "staff" | "admin" }
+// actor = { uid, name, role: "patient" | "admin" }
+// The clinic's shared inbox is the "clinic" notification channel,
+// which every admin / clinic staff account sees.
 // ==========================================
 import { db } from "../firebase/firebase.js";
 
 import {
     ref,
     get,
-    set,
     push,
     update,
     runTransaction,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
-import { REMINDERS } from "./config.js";
+import { REMINDERS, CLINIC_EMAIL } from "./config.js";
 
 import {
-    SERVICES,
     slotKey,
     formatDateLong,
     formatDateShort,
@@ -33,14 +33,12 @@ import {
     startOf,
     reminderTimes,
     needsAttendance,
-    eligibleStaff,
-    freeStaffAt,
-    pickStaff,
-    prefOf,
-    staffDisplayName
+    reasonOf
 } from "./clinic.js";
 
 import { notifyUser, sendEmail, emailLayout } from "./notify.js";
+
+export const CLINIC_CHANNEL = "clinic";
 
 
 /* =========================================
@@ -49,18 +47,20 @@ import { notifyUser, sendEmail, emailLayout } from "./notify.js";
 
 const apptPath = (a) => `appointments/${a.id}`;
 
-export const bookingPath = (a, staffId = a.staffId) =>
-    `bookings/${a.date}/${staffId}/${slotKey(a.time)}`;
+export const slotPath = (a) => `timeSlots/${a.date}/${slotKey(a.time)}`;
 
-// Frees the time slot an appointment was holding
-function releasePaths(a) {
+// Frees the appointment's time slot, but only if it is still holding it
+async function releaseChanges(a) {
 
     if (!a.date || !a.time) return {};
 
-    if (a.staffId) return { [bookingPath(a)]: null };
-
-    // Appointments booked before staff assignment existed
-    return a.service ? { [`slots/${a.date}/${a.service}/${slotKey(a.time)}`]: null } : {};
+    try {
+        const snap = await get(ref(db, slotPath(a)));
+        return snap.val() === a.id ? { [slotPath(a)]: null } : {};
+    } catch (error) {
+        console.warn("Couldn't check the time slot:", error);
+        return {};
+    }
 }
 
 // { status: "x" } -> { "appointments/ID/status": "x" } for one atomic update
@@ -72,7 +72,7 @@ function under(a, fields) {
 
 // One timeline entry: appointments/{id}/history/{pushId}
 // (spread it into the fields of the same update)
-function logEntry(a, action, actor = null, note = "") {
+export function logEntry(a, action, actor = null, note = "") {
     const key = push(ref(db, `${apptPath(a)}/history`)).key;
     return {
         [`history/${key}`]: {
@@ -92,19 +92,17 @@ const handled = (actor) => ({
     handledAt: serverTimestamp()
 });
 
-const serviceName = (a) => SERVICES[a.service]?.name || a.serviceName || "Appointment";
 const firstName = (name) => String(name || "").trim().split(/\s+/)[0] || "there";
 const shortWhen = (a) => `${formatDateShort(a.date)} at ${formatTime(a.time)}`;
 
 export const patientLink = (a) => `${patientPage(a.patientRole)}?tab=mine&appt=${a.id}`;
-export const staffLink = (a) => `staff/staff.html?appt=${a.id}`;
+export const adminLink = (a) => `admin/admin.html?appt=${a.id}`;
 
 function detailRows(a) {
     return [
-        ["Service", serviceName(a)],
+        ["Reason", reasonOf(a)],
         ["Date", a.date ? formatDateLong(a.date) : ""],
-        ["Time", a.time ? formatRange(a.time) : ""],
-        ["Provider", a.staffName || ""]
+        ["Time", a.time ? formatRange(a.time) : ""]
     ];
 }
 
@@ -113,48 +111,50 @@ function patientRows(a) {
         ["Patient", a.patientName],
         ["ID", a.patientId],
         ["Type", a.patientRole === "employee" ? "Employee" : "Student"],
-        ...detailRows(a).filter(([label]) => label !== "Provider"),
-        ["Reason", a.reason || ""]
+        ["Email", a.patientEmail],
+        ...detailRows(a)
     ];
 }
 
+const toClinic = (a, { title, body, kind = "info" }) =>
+    notifyUser(CLINIC_CHANNEL, { title, body, url: adminLink(a), apptId: a.id, kind });
+
+const emailClinic = (a, { subject, heading, intro }) =>
+    CLINIC_EMAIL && sendEmail({
+        to: CLINIC_EMAIL,
+        toName: "Clinic",
+        subject,
+        html: emailLayout({
+            heading,
+            intro,
+            rows: patientRows(a),
+            button: { label: "Open the admin page", url: siteUrl(adminLink(a)) }
+        })
+    });
+
 
 /* =========================================
-   NEW REQUEST -> the assigned doctor / nurse
+   NEW REQUEST -> the clinic
 ========================================= */
 
-export async function notifyNewRequest(a, { passedFrom = "" } = {}) {
-
-    const intro = passedFrom
-        ? `${passedFrom} passed this request on to you. Please review it on your dashboard.`
-        : "A new appointment request was assigned to you. Please review it on your dashboard.";
-
+export async function notifyNewRequest(a) {
     await Promise.all([
-        notifyUser(a.staffId, {
-            title: passedFrom ? "Request passed to you" : "New appointment request",
-            body: `${a.patientName} · ${serviceName(a)} · ${shortWhen(a)}`,
-            url: staffLink(a),
-            apptId: a.id,
+        toClinic(a, {
+            title: "New appointment request",
+            body: `${a.patientName} · ${reasonOf(a)} · ${shortWhen(a)}`,
             kind: "request"
         }),
-        sendEmail({
-            to: a.staffEmail,
-            toName: a.staffName,
+        emailClinic(a, {
             subject: `New request: ${a.patientName}, ${shortWhen(a)}`,
-            html: emailLayout({
-                heading: "New appointment request",
-                intro,
-                rows: patientRows(a),
-                blocks: [["Medical history", a.medicalHistory ? "Provided. Open the request to read it." : ""]],
-                button: { label: "Review request", url: siteUrl(staffLink(a)) }
-            })
+            heading: "New appointment request",
+            intro: "A new appointment request is waiting for approval."
         })
     ]);
 }
 
 
 /* =========================================
-   APPROVE (doctor / nurse / admin)
+   APPROVE (clinic staff)
 ========================================= */
 
 export async function approveAppointment(a, actor, { instructions = "" } = {}) {
@@ -186,8 +186,7 @@ export async function approveAppointment(a, actor, { instructions = "" } = {}) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Appointment approved",
-            body: `${serviceName(a)} with ${a.staffName} on ${shortWhen(a)}.` +
-                (askNow ? ` Please confirm you're coming by ${confirmBy}.` : ""),
+            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (askNow ? ` Please confirm you're coming by ${confirmBy}.` : ""),
             url: patientLink(a),
             apptId: a.id,
             kind: "success"
@@ -195,7 +194,7 @@ export async function approveAppointment(a, actor, { instructions = "" } = {}) {
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `Approved: ${serviceName(a)} on ${shortWhen(a)}`,
+            subject: `Approved: your clinic appointment on ${shortWhen(a)}`,
             html: emailLayout({
                 heading: "Your appointment is approved",
                 intro: `Hi ${firstName(a.patientName)}, your appointment request has been approved. Here are the details:`,
@@ -212,84 +211,13 @@ export async function approveAppointment(a, actor, { instructions = "" } = {}) {
 
 
 /* =========================================
-   DECLINE: pass the request to another free provider when the
-   patient didn't ask for a specific person, otherwise decline it.
+   DECLINE (clinic staff)
 ========================================= */
 
-async function passToAnotherProvider(a, actor, reason) {
-
-    const [staffSnap, daySnap] = await Promise.all([
-        get(ref(db, "staff")),
-        get(ref(db, `bookings/${a.date}`))
-    ]);
-
-    const passedBy = { ...(a.passedBy || {}), [a.staffId]: true };
-    const dayBookings = daySnap.val() || {};
-
-    let free = freeStaffAt(
-        eligibleStaff(staffSnap.val(), a.service, prefOf(a)).filter((s) => !passedBy[s.id]),
-        dayBookings, a.date, a.time
-    );
-
-    // Try the least busy first; if someone grabs that time first, try the next
-    while (free.length) {
-
-        const next = pickStaff(free, dayBookings);
-        free = free.filter((s) => s.id !== next.id);
-
-        const moved = {
-            ...a,
-            staffId: next.id,
-            staffName: staffDisplayName(next),
-            staffType: next.type || "",
-            staffEmail: next.email || ""
-        };
-
-        try {
-            await update(ref(db), {
-                ...releasePaths(a),
-                [bookingPath(a, next.id)]: a.id,
-                ...under(a, {
-                    staffId: moved.staffId,
-                    staffName: moved.staffName,
-                    staffType: moved.staffType,
-                    staffEmail: moved.staffEmail,
-                    [`passedBy/${a.staffId}`]: true,
-                    passNote: reason || null,
-                    ...handled(actor),
-                    ...logEntry(a, "passed", actor, `Passed to ${moved.staffName}`)
-                })
-            });
-        } catch (error) {
-            console.warn("Couldn't pass to", moved.staffName, error);
-            continue;
-        }
-
-        await Promise.all([
-            notifyNewRequest(moved, { passedFrom: actor.name }),
-            notifyUser(a.uid, {
-                title: "Your request was moved",
-                body: `${serviceName(a)} on ${shortWhen(a)} is now with ${moved.staffName}. It's still waiting for approval.`,
-                url: patientLink(a),
-                apptId: a.id
-            })
-        ]);
-
-        return moved;
-    }
-
-    return null;
-}
-
-export async function declineAppointment(a, actor, { reason = "", passOn = true } = {}) {
-
-    if (passOn && a.providerPref !== "person") {
-        const moved = await passToAnotherProvider(a, actor, reason);
-        if (moved) return { passedTo: moved.staffName };
-    }
+export async function declineAppointment(a, actor, { reason = "" } = {}) {
 
     await update(ref(db), {
-        ...releasePaths(a),
+        ...(await releaseChanges(a)),
         ...under(a, {
             status: "declined",
             declinedAt: serverTimestamp(),
@@ -302,7 +230,7 @@ export async function declineAppointment(a, actor, { reason = "", passOn = true 
     await Promise.all([
         notifyUser(a.uid, {
             title: "Request declined",
-            body: `${serviceName(a)} on ${shortWhen(a)}.` + (reason ? ` ${reason}` : " Please book another time."),
+            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (reason ? ` ${reason}` : " Please book another time."),
             url: patientLink(a),
             apptId: a.id,
             kind: "danger"
@@ -310,7 +238,7 @@ export async function declineAppointment(a, actor, { reason = "", passOn = true 
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `Request declined: ${serviceName(a)} on ${shortWhen(a)}`,
+            subject: `Request declined: your clinic appointment on ${shortWhen(a)}`,
             html: emailLayout({
                 heading: "Your request couldn't be accepted",
                 intro: `Hi ${firstName(a.patientName)}, sorry, the clinic couldn't accept this appointment request.`,
@@ -320,16 +248,16 @@ export async function declineAppointment(a, actor, { reason = "", passOn = true 
             })
         })
     ]);
-
-    return { passedTo: null };
 }
 
 
 /* =========================================
-   CANCEL (patient, staff or admin)
+   CANCEL (patient or clinic staff)
 ========================================= */
 
 export async function cancelAppointment(a, actor, { note = "" } = {}) {
+
+    const wasApproved = statusOf(a) === "approved";
 
     const fields = {
         status: "cancelled",
@@ -341,28 +269,21 @@ export async function cancelAppointment(a, actor, { note = "" } = {}) {
 
     if (actor.role !== "patient") fields.clinicNote = note.trim() || null;
 
-    await update(ref(db), { ...releasePaths(a), ...under(a, fields) });
+    await update(ref(db), { ...(await releaseChanges(a)), ...under(a, fields) });
 
     if (actor.role === "patient") {
 
         await Promise.all([
-            notifyUser(a.staffId, {
+            toClinic(a, {
                 title: "Appointment cancelled by patient",
-                body: `${a.patientName} cancelled ${serviceName(a)} on ${shortWhen(a)}. The time is open again.`,
-                url: staffLink(a),
-                apptId: a.id,
+                body: `${a.patientName} cancelled ${shortWhen(a)}. The slot is open again.`,
                 kind: "danger"
             }),
-            // Approved visits were on the provider's schedule: tell them by email too
-            statusOf(a) === "approved" && sendEmail({
-                to: a.staffEmail,
-                toName: a.staffName,
+            // Approved visits were on the schedule: email the clinic too
+            wasApproved && emailClinic(a, {
                 subject: `Cancelled: ${a.patientName}, ${shortWhen(a)}`,
-                html: emailLayout({
-                    heading: "A patient cancelled",
-                    intro: `${a.patientName} cancelled their appointment. The time slot is open again.`,
-                    rows: patientRows(a)
-                })
+                heading: "A patient cancelled",
+                intro: `${a.patientName} cancelled their approved appointment. The slot is open again.`
             })
         ]);
 
@@ -372,7 +293,7 @@ export async function cancelAppointment(a, actor, { note = "" } = {}) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Appointment cancelled by the clinic",
-            body: `${serviceName(a)} on ${shortWhen(a)}.` + (note ? ` ${note}` : ""),
+            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (note ? ` ${note}` : ""),
             url: patientLink(a),
             apptId: a.id,
             kind: "danger"
@@ -380,7 +301,7 @@ export async function cancelAppointment(a, actor, { note = "" } = {}) {
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `Cancelled: ${serviceName(a)} on ${shortWhen(a)}`,
+            subject: `Cancelled: your clinic appointment on ${shortWhen(a)}`,
             html: emailLayout({
                 heading: "Your appointment was cancelled",
                 intro: `Hi ${firstName(a.patientName)}, the clinic had to cancel your appointment.`,
@@ -388,14 +309,6 @@ export async function cancelAppointment(a, actor, { note = "" } = {}) {
                 blocks: [["Note from the clinic", note.trim()]],
                 button: { label: "Book another time", url: siteUrl(patientPage(a.patientRole)) }
             })
-        }),
-        // The admin cancelled someone else's appointment: tell the provider
-        actor.uid !== a.staffId && notifyUser(a.staffId, {
-            title: "Appointment cancelled",
-            body: `${actor.name || "The clinic"} cancelled ${a.patientName}'s visit on ${shortWhen(a)}.`,
-            url: staffLink(a),
-            apptId: a.id,
-            kind: "danger"
         })
     ]);
 }
@@ -413,18 +326,16 @@ export async function confirmAttendance(a, actor) {
         ...logEntry(a, "attending", actor)
     });
 
-    await notifyUser(a.staffId, {
+    await toClinic(a, {
         title: "Patient confirmed attendance",
-        body: `${a.patientName} will come to ${serviceName(a)} on ${shortWhen(a)}.`,
-        url: staffLink(a),
-        apptId: a.id,
+        body: `${a.patientName} will come on ${shortWhen(a)}.`,
         kind: "success"
     });
 }
 
 
 /* =========================================
-   STAFF: instructions, completed, no-show
+   CLINIC STAFF: instructions, completed, no-show
 ========================================= */
 
 export async function updateInstructions(a, actor, text) {
@@ -450,10 +361,10 @@ export async function updateInstructions(a, actor, text) {
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `How to prepare: ${serviceName(a)} on ${shortWhen(a)}`,
+            subject: `How to prepare: your clinic appointment on ${shortWhen(a)}`,
             html: emailLayout({
                 heading: "Instructions for your visit",
-                intro: `Hi ${firstName(a.patientName)}, ${a.staffName || "the clinic"} sent instructions for your upcoming appointment.`,
+                intro: `Hi ${firstName(a.patientName)}, the clinic sent instructions for your upcoming appointment.`,
                 rows: detailRows(a),
                 blocks: [["How to prepare", instructions]],
                 button: { label: "View my appointment", url: siteUrl(patientLink(a)) }
@@ -462,35 +373,13 @@ export async function updateInstructions(a, actor, text) {
     ]);
 }
 
-export async function completeAppointment(a, actor, { notes = "" } = {}) {
-
-    const changes = under(a, {
+export async function completeAppointment(a, actor) {
+    await update(ref(db, apptPath(a)), {
         status: "completed",
         completedAt: serverTimestamp(),
         ...handled(actor),
         ...logEntry(a, "completed", actor)
     });
-
-    // Visit notes live outside the appointment so only clinic staff can read them
-    if (notes.trim()) {
-        changes[`visitNotes/${a.id}`] = {
-            text: notes.trim(),
-            by: actor.uid,
-            byName: actor.name || "",
-            at: serverTimestamp()
-        };
-    }
-
-    await update(ref(db), changes);
-}
-
-export async function saveVisitNotes(a, actor, notes) {
-    await set(ref(db, `visitNotes/${a.id}`), notes.trim() ? {
-        text: notes.trim(),
-        by: actor.uid,
-        byName: actor.name || "",
-        at: serverTimestamp()
-    } : null);
 }
 
 export async function markMissed(a, actor) {
@@ -503,7 +392,7 @@ export async function markMissed(a, actor) {
 
     await notifyUser(a.uid, {
         title: "Marked as a no-show",
-        body: `You missed ${serviceName(a)} on ${shortWhen(a)}. Please cancel ahead next time so someone else can use the slot.`,
+        body: `You missed your appointment on ${shortWhen(a)}. Please cancel ahead next time so someone else can use the slot.`,
         url: patientLink(a),
         apptId: a.id
     });
@@ -512,10 +401,10 @@ export async function markMissed(a, actor) {
 
 /* =========================================
    REMINDER SWEEP
-   There's no server, so whichever page is open (the clinic's dashboard,
-   the admin page or the patient's own pages) sends the reminders that
-   are due and cancels visits nobody confirmed. A transaction "claims"
-   each step, so two open pages never send the same reminder twice.
+   There's no server, so whichever page is open (the admin page or the
+   patient's own pages) sends the reminders that are due and cancels
+   visits nobody confirmed. A transaction "claims" each step, so two
+   open pages never send the same reminder twice.
 ========================================= */
 
 async function claim(a, step) {
@@ -541,7 +430,7 @@ async function sendReminder(a, { lastCall }) {
     await Promise.all([
         notifyUser(a.uid, {
             title: lastCall ? "Last call: are you still coming?" : "Are you still coming?",
-            body: `${serviceName(a)} with ${a.staffName} on ${shortWhen(a)}. Confirm by ${deadline} or it will be cancelled.`,
+            body: `Your clinic appointment on ${shortWhen(a)}. Confirm by ${deadline} or it will be cancelled.`,
             url: patientLink(a),
             apptId: a.id,
             kind: "reminder"
@@ -549,7 +438,7 @@ async function sendReminder(a, { lastCall }) {
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `${lastCall ? "Last call" : "Reminder"}: please confirm your ${serviceName(a)} on ${shortWhen(a)}`,
+            subject: `${lastCall ? "Last call" : "Reminder"}: please confirm your clinic appointment on ${shortWhen(a)}`,
             html: emailLayout({
                 heading: lastCall ? "Last call: please confirm your visit" : "Are you still coming?",
                 intro: `Hi ${firstName(a.patientName)}, you have an appointment coming up. Please let us know if you're still coming.`,
@@ -565,7 +454,7 @@ async function sendReminder(a, { lastCall }) {
 async function autoCancel(a) {
 
     await update(ref(db), {
-        ...releasePaths(a),
+        ...(await releaseChanges(a)),
         ...under(a, {
             status: "cancelled",
             cancelledAt: serverTimestamp(),
@@ -578,22 +467,20 @@ async function autoCancel(a) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Appointment cancelled: not confirmed",
-            body: `${serviceName(a)} on ${shortWhen(a)} was cancelled because it wasn't confirmed in time.`,
+            body: `Your appointment on ${shortWhen(a)} was cancelled because it wasn't confirmed in time.`,
             url: patientLink(a),
             apptId: a.id,
             kind: "danger"
         }),
-        notifyUser(a.staffId, {
+        toClinic(a, {
             title: "Auto-cancelled (no confirmation)",
-            body: `${a.patientName}'s ${serviceName(a)} on ${shortWhen(a)} was cancelled. The time is open again.`,
-            url: staffLink(a),
-            apptId: a.id,
+            body: `${a.patientName}'s appointment on ${shortWhen(a)} was cancelled. The slot is open again.`,
             kind: "danger"
         }),
         sendEmail({
             to: a.patientEmail,
             toName: a.patientName,
-            subject: `Cancelled: ${serviceName(a)} on ${shortWhen(a)} (not confirmed)`,
+            subject: `Cancelled: your clinic appointment on ${shortWhen(a)} (not confirmed)`,
             html: emailLayout({
                 heading: "Your appointment was cancelled",
                 intro: `Hi ${firstName(a.patientName)}, we didn't hear back from you, so your appointment was cancelled and the time was given to other patients.`,
@@ -607,7 +494,7 @@ async function autoCancel(a) {
 async function expireRequest(a) {
 
     await update(ref(db), {
-        ...releasePaths(a),
+        ...(await releaseChanges(a)),
         ...under(a, {
             status: "cancelled",
             cancelledAt: serverTimestamp(),
@@ -619,7 +506,7 @@ async function expireRequest(a) {
 
     await notifyUser(a.uid, {
         title: "Request not approved in time",
-        body: `${serviceName(a)} on ${shortWhen(a)} wasn't approved before the visit time. Please book again.`,
+        body: `Your request for ${shortWhen(a)} wasn't approved before the visit time. Please book again.`,
         url: patientLink(a),
         apptId: a.id,
         kind: "danger"

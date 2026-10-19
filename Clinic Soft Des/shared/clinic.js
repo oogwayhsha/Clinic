@@ -1,68 +1,10 @@
 // ==========================================
 // SHARED CLINIC DATA + HELPERS
-// Used by the patient, staff and admin pages.
+// Used by the patient pages and the admin page.
 // ==========================================
-import { REMINDERS } from "./config.js";
+import { REMINDERS, CLINIC_HOURS, SLOT_MINUTES } from "./config.js";
 
-
-/* =========================================
-   SERVICES
-   days: 0 = Sunday ... 6 = Saturday
-   ranges: 24-hour start/end of bookable time
-   Keep these in sync with the Schedule section of dashboard.html.
-   A time can only be booked when the service is open AND a staff
-   member who handles the service is working.
-========================================= */
-
-export const SLOT_MINUTES = 30;          // length of one appointment
-export const BOOKING_WINDOW_DAYS = 14;   // how far ahead patients can book
-
-export const SERVICES = {
-    consultation: {
-        name: "Medical Consultation",
-        desc: "See a physician or nurse for check-ups, illness and other health concerns.",
-        color: "blue",
-        days: [1, 2, 3, 4, 5],
-        ranges: [["08:00", "16:30"]],
-        icon: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>'
-    },
-    dental: {
-        name: "Dental Services",
-        desc: "Dental check-ups, cleaning and basic oral care.",
-        color: "teal",
-        days: [1, 3, 5],
-        ranges: [["09:00", "16:00"]],
-        icon: '<path d="M7 4c-2.2 0-4 1.8-4 4.2 0 1.7.6 2.8 1.1 4.3C4.6 14.4 5 20 7 20c1.6 0 1.5-4 3-4h4c1.5 0 1.4 4 3 4 2 0 2.4-5.6 2.9-7.5.5-1.5 1.1-2.6 1.1-4.3C21 5.8 19.2 4 17 4c-1.5 0-2.5 1-5 1S8.5 4 7 4z"></path>'
-    },
-    certificate: {
-        name: "Medical Certificate",
-        desc: "Request health clearances and medical certificates.",
-        color: "orange",
-        days: [1, 2, 3, 4, 5],
-        ranges: [["08:00", "11:00"], ["13:00", "16:00"]],
-        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><polyline points="9 15 11 17 15 13"></polyline>'
-    }
-};
-
-
-/* =========================================
-   CLINIC STAFF TYPES
-   services: what a new staff member of this type handles by default
-   (the admin can change it per person).
-========================================= */
-
-export const STAFF_TYPES = {
-    doctor:  { label: "Doctor",  plural: "Doctors",  title: "Dr.", services: ["consultation", "certificate"] },
-    nurse:   { label: "Nurse",   plural: "Nurses",   title: "",    services: ["consultation", "certificate"] },
-    dentist: { label: "Dentist", plural: "Dentists", title: "Dr.", services: ["dental"] }
-};
-
-// Default weekly hours for a new staff member (they can edit their own)
-export const DEFAULT_AVAILABILITY = {
-    doctor:  { 1: [["08:00", "12:00"], ["13:00", "17:00"]], 2: [["08:00", "12:00"], ["13:00", "17:00"]], 3: [["08:00", "12:00"], ["13:00", "17:00"]], 4: [["08:00", "12:00"], ["13:00", "17:00"]], 5: [["08:00", "12:00"], ["13:00", "17:00"]] },
-    nurse:   { 1: [["08:00", "12:00"], ["13:00", "17:00"]], 2: [["08:00", "12:00"], ["13:00", "17:00"]], 3: [["08:00", "12:00"], ["13:00", "17:00"]], 4: [["08:00", "12:00"], ["13:00", "17:00"]], 5: [["08:00", "12:00"], ["13:00", "17:00"]] },
-    dentist: { 1: [["09:00", "12:00"], ["13:00", "16:00"]], 3: [["09:00", "12:00"], ["13:00", "16:00"]], 5: [["09:00", "12:00"], ["13:00", "16:00"]] }
-};
+export { SLOT_MINUTES, BOOKING_WINDOW_DAYS } from "./config.js";
 
 export const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const DAY_NAMES_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -141,26 +83,7 @@ export function describeDays(days) {
         : sorted.map((d) => DAY_NAMES[d]).join(", ");
 }
 
-export function describeRanges(ranges) {
-    return ranges
-        .map(([start, end]) => `${formatTime(start)} – ${formatTime(end)}`)
-        .join(", ");
-}
-
-// Every bookable start time of a service, e.g. ["08:00", "08:30", ...]
-export function generateSlots(service) {
-    const slots = [];
-
-    service.ranges.forEach(([start, end]) => {
-        for (let m = toMinutes(start); m + SLOT_MINUTES <= toMinutes(end); m += SLOT_MINUTES) {
-            slots.push(toTime(m));
-        }
-    });
-
-    return slots;
-}
-
-// Pages live one folder below the site root (student/, staff/ ...)
+// Pages live one folder below the site root (student/, admin/ ...)
 export const siteUrl = (path) => new URL(`../${path}`, location.href).href;
 
 export const patientPage = (role) =>
@@ -170,83 +93,49 @@ export const listOf = (value) => (value ? Object.values(value) : []);
 
 
 /* =========================================
-   STAFF + AVAILABILITY
-   staff/{uid}:    { name, email, type, services: {consultation: true},
-                     availability: { 1: [["08:00","12:00"], ...] },
-                     daysOff: { "2026-10-20": "Seminar" }, active }
-   bookings/{date}/{staffId}/{HHMM} = appointmentId
+   CLINIC HOURS + SLOTS
+   timeSlots/{date}/{HHMM} = appointmentId
+   One appointment per 30-minute slot, whatever the reason.
+   clinicClosures/{date} = "Holiday" (no bookings that day)
 ========================================= */
 
-export function staffDisplayName(staff) {
-    if (!staff) return "";
-    const title = STAFF_TYPES[staff.type]?.title;
-    const name = staff.name || staff.email || "Clinic staff";
-    return title && !name.startsWith(title) ? `${title} ${name}` : name;
+export const HOURS_TEXT =
+    `${describeDays(CLINIC_HOURS.days)}, ${formatTime(CLINIC_HOURS.open)} – ${formatTime(CLINIC_HOURS.close)}`;
+
+// Every bookable start time in a clinic day: 07:00, 07:30 ... 20:30
+export const DAY_SLOTS = (() => {
+    const slots = [];
+    for (let m = toMinutes(CLINIC_HOURS.open); m + SLOT_MINUTES <= toMinutes(CLINIC_HOURS.close); m += SLOT_MINUTES) {
+        slots.push(toTime(m));
+    }
+    return slots;
+})();
+
+export const isClinicDay = (dateKey, closures = {}) =>
+    CLINIC_HOURS.days.includes(parseDateKey(dateKey).getDay()) && !closures[dateKey];
+
+export const isTaken = (daySlots, time) => Boolean(daySlots && daySlots[slotKey(time)]);
+
+// Open (future, untaken) start times on a date
+export function openSlots(dateKey, daySlots, closures = {}) {
+    if (!isClinicDay(dateKey, closures)) return [];
+    return DAY_SLOTS.filter((time) => !isSlotPast(dateKey, time) && !isTaken(daySlots, time));
 }
 
-export const staffTypeLabel = (type) => STAFF_TYPES[type]?.label || "Clinic staff";
 
-export const handlesService = (staff, service) =>
-    Boolean(staff?.services && staff.services[service]);
+/* =========================================
+   REASONS
+   Older appointments stored a "service" instead of a reason.
+========================================= */
 
-// Firebase may return the weekly hours as an array or an object
-export function rangesFor(staff, dayIndex) {
-    const day = staff?.availability ? staff.availability[dayIndex] : null;
-    return listOf(day).map((r) => listOf(r)).filter((r) => r.length === 2);
-}
+const OLD_SERVICES = {
+    consultation: "Medical Consultation",
+    dental: "Dental Services",
+    certificate: "Medical Certificate"
+};
 
-export function staffWorksAt(staff, dateKey, time) {
-
-    if (!staff || staff.active === false) return false;
-    if (staff.daysOff && staff.daysOff[dateKey]) return false;
-
-    const start = toMinutes(time);
-    const end = start + SLOT_MINUTES;
-
-    return rangesFor(staff, parseDateKey(dateKey).getDay())
-        .some(([a, b]) => toMinutes(a) <= start && end <= toMinutes(b));
-}
-
-// pref: { kind: "any" } | { kind: "type", type: "doctor" } | { kind: "person", staffId }
-export function eligibleStaff(staffMap, service, pref = { kind: "any" }) {
-    return Object.entries(staffMap || {})
-        .map(([id, s]) => ({ id, ...s }))
-        .filter((s) => s.active !== false && handlesService(s, service))
-        .filter((s) => {
-            if (pref.kind === "type") return s.type === pref.type;
-            if (pref.kind === "person") return s.id === pref.staffId;
-            return true;
-        });
-}
-
-export const isBooked = (dayBookings, staffId, time) =>
-    Boolean(dayBookings && dayBookings[staffId] && dayBookings[staffId][slotKey(time)]);
-
-// Staff from `candidates` who are working and free at that time
-export function freeStaffAt(candidates, dayBookings, dateKey, time) {
-    return candidates.filter((s) =>
-        staffWorksAt(s, dateKey, time) && !isBooked(dayBookings, s.id, time));
-}
-
-// Who gets an "any available" request: the least busy that day
-export function pickStaff(free, dayBookings) {
-    const load = (s) => Object.keys((dayBookings && dayBookings[s.id]) || {}).length;
-
-    return [...free].sort((a, b) =>
-        load(a) - load(b) || staffDisplayName(a).localeCompare(staffDisplayName(b)))[0] || null;
-}
-
-export function prefOf(a) {
-    if (a.providerPref === "person" && a.requestedStaffId) return { kind: "person", staffId: a.requestedStaffId };
-    if (STAFF_TYPES[a.providerPref]) return { kind: "type", type: a.providerPref };
-    return { kind: "any" };
-}
-
-export function describePref(a) {
-    if (a.providerPref === "person") return "Requested this provider";
-    if (STAFF_TYPES[a.providerPref]) return `Any ${STAFF_TYPES[a.providerPref].label.toLowerCase()}`;
-    return "Any available provider";
-}
+export const reasonOf = (a) =>
+    a.reason || a.serviceName || OLD_SERVICES[a.service] || "Clinic appointment";
 
 
 /* =========================================
@@ -331,14 +220,13 @@ export function stateLabel(a, state = stateOf(a)) {
     return STATE_INFO[state]?.label || state;
 }
 
-// Still holding a time slot (blocks a double booking)
+// Still holding a time slot
 export const isActive = (a) => ["pending", "approved"].includes(statusOf(a));
 
 
 /* =========================================
    APPOINTMENT TIMELINE
    appointments/{id}/history/{pushId} = { action, byRole, byName, at, note }
-   (records made before this update may say "confirmed" for approved)
 ========================================= */
 
 export const HISTORY_LABEL = {
@@ -369,7 +257,7 @@ export function historyTimelineHtml(a) {
             ${items.map((h) => {
                 const info = HISTORY_LABEL[h.action] || { label: h.action || "Updated", cls: "info" };
                 const who = h.byRole === "system" ? "automatic"
-                    : h.byRole === "patient" || ["student", "employee"].includes(h.byRole) ? "by patient"
+                    : ["patient", "student", "employee"].includes(h.byRole) ? "by patient"
                     : h.byName ? `by ${h.byName}` : "";
                 const when = h.at ? new Date(Number(h.at)).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "";
 
@@ -382,43 +270,4 @@ export function historyTimelineHtml(a) {
                     </li>`;
             }).join("")}
         </ul>`;
-}
-
-
-/* =========================================
-   MEDICAL HISTORY
-========================================= */
-
-export const CONDITIONS = [
-    "Asthma",
-    "Diabetes",
-    "Hypertension",
-    "Heart condition",
-    "Seizures / Epilepsy",
-    "Thyroid disorder",
-    "Kidney disease",
-    "Bleeding disorder",
-    "Mental health condition"
-];
-
-export function hasMedicalHistory(h) {
-    return Boolean(h && (h.allergies || h.medications || h.surgeries || h.notes ||
-        h.otherCondition || listOf(h.conditions).length));
-}
-
-// Read-only summary used by staff and patients
-export function medicalHistoryHtml(h) {
-
-    if (!hasMedicalHistory(h)) return '<p class="muted-text">No medical history was provided.</p>';
-
-    const rows = [
-        ["Allergies", h.allergies],
-        ["Current medications", h.medications],
-        ["Conditions", [...listOf(h.conditions), h.otherCondition].filter(Boolean).join(", ")],
-        ["Past surgeries / hospitalizations", h.surgeries],
-        ["Other notes", h.notes]
-    ].filter(([, value]) => value);
-
-    return `<dl class="history-list">${rows.map(([label, value]) =>
-        `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
 }

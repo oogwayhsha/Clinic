@@ -1,115 +1,93 @@
-# NUFV CARES: setup after the doctor/nurse update
+# NUFV CARES: setup
 
-Do these once, in this order. Nothing works fully until step 1 and step 2 are done.
+How the system works now (from the clinic interview):
+
+- **One appointment per 30-minute slot**, whatever the reason.
+- **Clinic hours:** Monday to Saturday, 7:00 AM – 9:00 PM. The last slot starts at 8:30 PM.
+- **Accounts:** students and employees book. **Clinic staff** sign in as **Admin**; each staff member has their own login.
+- **Booking:** patients pick a reason from a list the clinic edits. The clinic approves or declines each request.
+- **Emails and reminders:** the patient gets an email when a request is approved. A day before the visit they're asked to confirm they're still coming. An unconfirmed visit is cancelled automatically so someone else can use the slot.
+
+Do steps 1–3 once, in order.
 
 ## 1. Publish the database rules (required)
 
 1. Firebase Console → **Realtime Database → Rules**.
 2. Replace everything with the contents of `database.rules.json`, then **Publish**.
 
-The new pages read and write new places in the database (`staff`, `bookings`,
-`notifications`, `medicalHistory`, `visitNotes`). With the old rules those requests are
-refused. The rules also:
+The pages read and write `timeSlots`, `bookingReasons`, `clinicClosures`, `admins` and `notifications/clinic`. The old rules refuse these, so nothing works until the new rules are published.
 
-- stop two patients from booking the same provider at the same time
-- let only the patient and clinic staff read medical history
-- keep visit notes private to clinic staff
-- refuse any password stored with an RFID card
+## 2. Sign in as the main admin and add the clinic staff
 
-If you had custom rules of your own, merge them in instead of overwriting.
+The main admin is the account whose UID is `ADMIN_UID` in `shared/config.js` (and in the rules).
 
-## 2. Add the clinic staff (required)
-
-Patients can only book times when a doctor, nurse or dentist is on duty, so **booking
-shows no times until at least one staff member exists**.
-
-1. Log in as admin → **Appointment Management → Clinic Staff → Add staff member**.
-2. Enter their name, work email, role and the services they handle.
-3. They get a Firebase "reset your password" email. They set a password, then log in
-   with **Clinic Staff (Doctor / Nurse)** on the login page.
-4. Each staff member starts with default weekly hours and can change them under
-   **My Availability**.
+1. Log in with **Admin / Clinic Staff** selected.
+2. Go to **Settings → Clinic staff accounts → Add clinic staff**, and enter each nurse's, doctor's or staff member's name, email and position.
+3. They get a "set your password" email (check spam). After setting a password, they log in with **Admin / Clinic Staff** and see the same admin page.
+4. **Remove access** blocks someone without deleting their history.
 
 The email must not already belong to a student or employee account.
-If the password email doesn't arrive, check spam, or use **Send password email** on
-their card.
 
-## 3. Turn on email notifications (EmailJS, free tier: 200 emails/month)
+## 3. Check the booking reasons and closures
 
-Emails are sent from the clinic's Gmail through [EmailJS](https://www.emailjs.com),
-because the app has no server of its own.
+**Settings → Reasons patients can choose:**
 
-1. Create an EmailJS account.
-2. **Email Services → Add New Service → Gmail**, and connect the clinic's Gmail account.
-3. **Email Templates → Create New Template** and set:
-   - **To Email:** `{{to_email}}`
-   - **Subject:** `{{subject}}`
-   - **Content:** switch the editor to code view and enter `{{{message_html}}}`
-     (three braces, so the formatted email isn't escaped)
-4. Copy the Service ID, Template ID and **Account → Public Key** into the `EMAILJS`
-   settings in `shared/config.js`.
-5. Recommended: **Account → Security** → allow only your site's domain.
+- The first time an admin opens the page, the default list is saved here.
+- Add, rename, reorder, switch off or delete reasons.
+- Switched-off and deleted reasons disappear from the booking page. Past appointments keep their reason text.
 
-If you skip this step, everything else still works and the emails are just skipped.
-The browser console shows `[email skipped: EmailJS not configured]`.
+**Settings → Clinic closures:**
 
-Emails sent:
+- Close a date (holiday, school event) and patients can't book it.
+- If appointments already exist that day, the page warns you so you can cancel them.
 
-| When | To |
+## Email notifications (EmailJS)
+
+The EmailJS keys are already in `shared/config.js`. The template needs:
+
+- **To Email:** `{{to_email}}`
+- **Subject:** `{{subject}}`
+- **Content:** `{{{message_html}}}`
+- **From Name:** `NUFV CARES`
+
+To also email the clinic about new requests and patient cancellations, put the clinic's inbox in `CLINIC_EMAIL` in `shared/config.js`. Without it, those alerts only appear in the bell on the admin page.
+
+| When | Email to |
 |---|---|
-| A patient sends a request | the assigned doctor/nurse |
-| A request is approved, with any pre-appointment instructions | the patient |
-| A request is declined, or the clinic cancels | the patient |
-| Instructions are added or changed later | the patient |
-| "Are you still coming?" reminders (24 h before, then a last call) | the patient |
-| A visit is auto-cancelled because it wasn't confirmed | the patient |
-| A patient cancels an approved visit | the doctor/nurse |
+| A request is approved (with any instructions) | patient |
+| A request is declined, or the clinic cancels | patient |
+| Instructions are added later | patient |
+| "Are you still coming?" (24 h before, then a last call) | patient |
+| A visit is auto-cancelled (not confirmed) | patient |
+| A new request comes in | clinic (`CLINIC_EMAIL`) |
+| A patient cancels an approved visit | clinic (`CLINIC_EMAIL`) |
 
-## 4. How reminders and auto-cancel work (and the one limit)
+Recommended: in EmailJS, **Account → Security**, allow only your site's domain.
 
-- After approval, the patient is asked to confirm **24 hours before** the visit, and
-  again at a **last call** about 4 hours before. A last call that would land at night
-  moves to 8 PM the evening before.
-- If they don't confirm by **2 hours before**, the appointment is cancelled, the slot is
-  freed, and both sides are told.
-- The doctor/nurse **Schedule** tab shows each patient's status live: *Not asked yet*,
-  *Asked, no reply yet*, *Confirmed coming* or *Cancelled*.
+## Reminders and auto-cancel (one limit)
 
-You can change these timings in `REMINDERS` in `shared/config.js`.
+There's no server, so reminders and auto-cancellations are done by whichever page of the system is open: the admin page, or the patient's own pages. Keep the admin page open at the clinic during the day and they run on time. To run them with nothing open, move `sweepAppointments` (`shared/actions.js`) into a scheduled Firebase Cloud Function, which needs the paid Blaze plan.
 
-**Limit:** the app has no server, so reminders are sent by whichever page of the system
-is open at the time: a staff dashboard, the admin page, or the patient's own pages.
-Keep a staff dashboard open at the clinic during the day and reminders go out on time.
-If nothing is open, they go out as soon as anyone opens the site. To send reminders on
-the dot around the clock, move `sweepAppointments` (in `shared/actions.js`) into a
-scheduled Firebase Cloud Function. That requires the paid Blaze plan.
+You can change the timings (24 h / last call / 2 h deadline) in `REMINDERS` in `shared/config.js`.
 
-## 5. Device ("push") notifications
+## Changing clinic rules
 
-Users tap the bell → **Turn on**. They then get phone/desktop notifications for new
-requests, approvals and reminders **while any tab of the site is open**. This needs
-HTTPS, which GitHub Pages provides. True push to a closed browser would need a server
-(Firebase Cloud Messaging + Cloud Functions), the same as above.
+Everything is in `shared/config.js`:
 
-## 6. RFID / NFC card login
+- `CLINIC_HOURS`: days and open/close times. Also update the hours table in `dashboard/dashboard.html`.
+- `SLOT_MINUTES`, `BOOKING_WINDOW_DAYS`: slot length and how far ahead patients can book.
+- `BOOKING_LIMITS`: how many active appointments one patient can hold. The defaults are 1 per day and 3 upcoming.
 
-Tapping a card now only identifies the account. The person must still enter the account
-password in a "Confirm it's you" dialog.
+## Cleaning up data from the earlier version
 
-Older registrations saved the account **password in plain text** under
-`rfid_lookup/<card>/authKey`, readable by anyone. New registrations no longer store it,
-and each old entry is removed the next time that person logs in with their card.
-**Delete the remaining `authKey` fields now:** Firebase Console → Realtime Database →
-`rfid_lookup` → each card → delete `authKey`. Anyone who registered a card before this
-update should also change their password.
+The doctor/nurse version left data the system no longer uses. It's harmless, but you can delete these nodes in Firebase Console → Realtime Database:
 
-## 7. Student email
+- `staff`, `bookings`, `slots`: replaced by `admins` and `timeSlots`.
+- `medicalHistory`, `visitNotes`: removed at the clinic's request.
+- `rfid_lookup/<card>/authKey`: old saved passwords. **Delete these**, and anyone who registered a card before should change their password.
 
-Students can now register with any email (e.g. Gmail), which is where their
-notifications go. Employees still need their `@nu-fairview.edu.ph` email. Change this in
-`REQUIRE_NU_EMAIL` at the top of `register/register.js`.
+Upcoming appointments made before this version are moved onto the new slot system automatically the first time an admin opens the admin page. If two of them happen to share a slot, both are tagged **Double-booked** so staff can cancel one.
 
-## Old appointments
+## RFID / NFC card login
 
-Appointments made before this update have no provider. The admin page shows them as
-**Unassigned**, and the admin can still complete or cancel them.
+Tapping a card only identifies the account; the person still types their password. This applies to students and employees.

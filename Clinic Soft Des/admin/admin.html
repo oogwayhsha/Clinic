@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Appointment Management | NUFV CARES</title>
+    <title>Clinic Dashboard | NUFV CARES</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,6 +50,11 @@
 
             <div class="bell-slot" id="bellSlotDesktop"></div>
 
+            <a href="admin.html?view=settings" class="nav-profile-btn" id="deskProfileBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>My Account</span>
+            </a>
+
             <button type="button" id="logoutBtn" class="logout-btn">Logout</button>
 
         </div>
@@ -65,6 +70,10 @@
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                     <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
+            </a>
+
+            <a href="admin.html?view=settings" class="mobile-icon-btn" id="profileBtn" aria-label="My Account" title="My Account">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             </a>
 
             <button type="button" class="mobile-icon-btn logout" id="mobileLogoutBtn" aria-label="Log Out" title="Log Out">
@@ -83,7 +92,7 @@
     <!-- MAIN CONTENT -->
     <main class="page-container">
 
-        <!-- Shown until the account is confirmed as an admin -->
+        <!-- Shown until the account is confirmed as clinic staff -->
         <div class="empty-state access-check" id="accessCheck">
             <p>Checking your access...</p>
         </div>
@@ -95,92 +104,74 @@
             <section class="page-header">
 
                 <div>
-                    <span class="page-label">ADMIN</span>
-                    <h2>Appointment Management</h2>
-                    <p>Oversee every appointment and provider, and manage the clinic's doctors, nurses and dentists.</p>
+                    <span class="page-label">CLINIC STAFF</span>
+                    <h2 id="greeting">Appointment Management</h2>
+                    <p>Review and approve requests, follow the schedule, and look up any patient's booking history.</p>
                 </div>
 
                 <div class="header-actions">
-                    <button type="button" class="btn-secondary" id="refreshBtn">↻ Refresh</button>
+                    <span class="live-pill" id="livePill"><span></span> Live</span>
                     <button type="button" class="btn-primary" id="exportBtn">Export CSV</button>
                 </div>
 
             </section>
 
 
-            <!-- STATS -->
+            <!-- STATS: each card opens its list -->
             <section class="stats-grid" aria-label="Appointment overview">
 
-               
-               
-            
-<div class="stat-card" data-filter="today" role="button" tabindex="0">
-    <span class="stat-label">TODAY</span>
-    <h2 id="statToday">0</h2>
-    <p>appointments</p>
-</div>
+                <button type="button" class="stat-card" data-stat="today">
+                    <span class="stat-label">Today</span>
+                    <strong id="statToday">0</strong>
+                    <small>appointments today</small>
+                </button>
 
-<div class="stat-card" data-filter="pending" role="button" tabindex="0">
-    <span class="stat-label">PENDING</span>
-    <h2 id="statPending">0</h2>
-    <p>waiting for a provider</p>
-</div>
+                <button type="button" class="stat-card" data-stat="pending">
+                    <span class="stat-label">Pending</span>
+                    <strong id="statPending">0</strong>
+                    <small>waiting for approval</small>
+                </button>
 
-<div class="stat-card" data-filter="approved" role="button" tabindex="0">
-    <span class="stat-label">APPROVED</span>
-    <h2 id="statConfirmed">0</h2>
-    <p>upcoming</p>
-</div>
+                <button type="button" class="stat-card" data-stat="approved">
+                    <span class="stat-label">Approved</span>
+                    <strong id="statApproved">0</strong>
+                    <small>upcoming</small>
+                </button>
 
-<div class="stat-card" data-filter="completed" role="button" tabindex="0">
-    <span class="stat-label">COMPLETED</span>
-    <h2 id="statCompleted">0</h2>
-    <p>all time</p>
-</div>
-
-
+                <button type="button" class="stat-card" data-stat="completed">
+                    <span class="stat-label">Completed</span>
+                    <strong id="statCompleted">0</strong>
+                    <small>all time</small>
+                </button>
 
             </section>
 
 
             <!-- MAIN VIEW SWITCHER -->
-            <div class="main-view-switcher" role="tablist" aria-label="Appointment view format">
-                <button type="button" class="view-switch-btn active" id="viewWeeklyScheduleBtn" role="tab" aria-selected="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    Weekly Schedule Table
+            <div class="main-view-switcher" role="tablist" aria-label="Admin sections">
+                <button type="button" class="view-switch-btn active" data-view="weekly" role="tab" aria-selected="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    Weekly Schedule
                 </button>
-                <button type="button" class="view-switch-btn" id="viewListViewBtn" role="tab" aria-selected="false">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="8" y1="6" x2="21" y2="6"></line>
-                        <line x1="8" y1="12" x2="21" y2="12"></line>
-                        <line x1="8" y1="18" x2="21" y2="18"></line>
-                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                    </svg>
-                    All Appointments (Card List)
+                <button type="button" class="view-switch-btn" data-view="list" role="tab" aria-selected="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    All Appointments
+                    <span class="tab-count" id="pendingBadge" hidden>0</span>
                 </button>
-                <button type="button" class="view-switch-btn" id="viewStaffBtn" role="tab" aria-selected="false">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    Clinic Staff
+                <button type="button" class="view-switch-btn" data-view="patients" role="tab" aria-selected="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    Patients &amp; History
+                </button>
+                <button type="button" class="view-switch-btn" data-view="settings" role="tab" aria-selected="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Settings
                 </button>
             </div>
 
 
-            <!-- WEEKLY SCHEDULE VIEW (Tabular / Grid) -->
-            <section id="weeklyScheduleSection" class="weekly-schedule-section">
+            <!-- ===================== WEEKLY SCHEDULE ===================== -->
+            <section id="view-weekly" class="weekly-schedule-section">
 
-                <!-- Navigation & Controls Header Card -->
                 <div class="card week-nav-card">
                     <div class="week-nav-top">
                         <div class="week-date-heading">
@@ -191,86 +182,50 @@
                             </div>
                         </div>
 
-                        <!-- Week Navigation Buttons -->
                         <div class="week-nav-btns">
                             <button type="button" class="btn-week-nav" id="prevWeekBtn" title="Previous week" aria-label="Previous week">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="15 18 9 12 15 6"></polyline>
-                                </svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                 <span>Prev Week</span>
                             </button>
-                            <button type="button" class="btn-week-today" id="thisWeekBtn" title="Go to current week">
-                                Current Week
-                            </button>
+                            <button type="button" class="btn-week-today" id="thisWeekBtn" title="Go to current week">Current Week</button>
                             <button type="button" class="btn-week-nav" id="nextWeekBtn" title="Next week" aria-label="Next week">
                                 <span>Next Week</span>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                             </button>
                         </div>
                     </div>
 
-                    <!-- Week Summary Ribbon & Sub-view Toggles -->
                     <div class="week-toolbar">
-                        <div class="week-summary-pills" id="weekSummaryPills">
-                            <!-- Populated dynamically -->
-                        </div>
+                        <div class="week-summary-pills" id="weekSummaryPills"></div>
 
                         <div class="week-display-toggle" role="group" aria-label="Display mode">
-                            <button type="button" class="display-toggle-btn active" id="displayTableBtn" title="Tabular schedule table view">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"></path>
-                                </svg>
-                                Tabular Table
+                            <button type="button" class="display-toggle-btn active" id="displayTableBtn" title="Table">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"></path></svg>
+                                Table
                             </button>
-                            <button type="button" class="display-toggle-btn" id="displayGridBtn" title="Day columns timetable grid">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-                                    <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-                                </svg>
+                            <button type="button" class="display-toggle-btn" id="displayGridBtn" title="Day columns">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"></rect><rect x="14" y="3" width="7" height="18" rx="1"></rect></svg>
                                 Day Columns
                             </button>
                         </div>
                     </div>
 
-                    <!-- Quick Filters for the week -->
                     <div class="week-quick-filters">
                         <div class="week-filter-group">
                             <label for="weekStatusFilter">Status</label>
-                            <select id="weekStatusFilter">
-                                <option value="all">All statuses</option>
-                                <option value="pending">Pending approval</option>
-                                <option value="approved">Approved</option>
-                                <option value="completed">Completed</option>
-                                <option value="missed">No-show</option>
-                                <option value="cancelled">Cancelled</option>
-                                <option value="declined">Declined</option>
-                            </select>
+                            <select id="weekStatusFilter" class="status-select"></select>
                         </div>
                         <div class="week-filter-group">
-                            <label for="weekServiceFilter">Service</label>
-                            <select id="weekServiceFilter">
-                                <option value="all">All services</option>
-                                <option value="consultation">Medical Consultation</option>
-                                <option value="dental">Dental Services</option>
-                                <option value="certificate">Medical Certificate</option>
-                            </select>
-                        </div>
-                        <div class="week-filter-group">
-                            <label for="weekProviderFilter">Provider</label>
-                            <select id="weekProviderFilter">
-                                <option value="all">All providers</option>
-                            </select>
+                            <label for="weekReasonFilter">Reason</label>
+                            <select id="weekReasonFilter" class="reason-filter"></select>
                         </div>
                         <div class="week-filter-group search">
-                            <label for="weekSearchInput">Search Patient</label>
-                            <input type="search" id="weekSearchInput" placeholder="Name or Student/Employee ID...">
+                            <label for="weekSearchInput">Search</label>
+                            <input type="search" id="weekSearchInput" placeholder="Name or Student/Employee ID">
                         </div>
                     </div>
                 </div>
 
-                <!-- Dynamic Weekly Content (Table or Day Columns Grid) -->
                 <div id="weeklyContentArea" aria-live="polite">
                     <div class="empty-state"><p>Loading weekly schedule...</p></div>
                 </div>
@@ -278,13 +233,11 @@
             </section>
 
 
-            <!-- CARD LIST VIEW (Detailed filter toolbar + cards) -->
-            <section id="listViewSection" hidden>
+            <!-- ===================== ALL APPOINTMENTS ===================== -->
+            <section id="view-list" hidden>
 
-                <!-- FILTERS -->
                 <div class="card toolbar">
 
-                    <!-- CHANGED: "All" is first and active by default -->
                     <div class="filters" id="rangeFilters" role="group" aria-label="Date range">
                         <button type="button" class="filter active" data-range="all">All</button>
                         <button type="button" class="filter" data-range="today">Today</button>
@@ -296,37 +249,17 @@
 
                         <div class="form-group search">
                             <label for="searchInput">Search</label>
-                            <input type="search" id="searchInput" placeholder="Name, ID or service">
+                            <input type="search" id="searchInput" placeholder="Name, ID or reason">
                         </div>
 
                         <div class="form-group">
                             <label for="statusFilter">Status</label>
-                            <select id="statusFilter">
-                                <option value="all">All statuses</option>
-                                <option value="pending">Pending approval</option>
-                                <option value="approved">Approved</option>
-                                <option value="completed">Completed</option>
-                                <option value="missed">No-show</option>
-                                <option value="cancelled">Cancelled</option>
-                                <option value="declined">Declined</option>
-                            </select>
+                            <select id="statusFilter" class="status-select"></select>
                         </div>
 
                         <div class="form-group">
-                            <label for="serviceFilter">Service</label>
-                            <select id="serviceFilter">
-                                <option value="all">All services</option>
-                                <option value="consultation">Medical Consultation</option>
-                                <option value="dental">Dental Services</option>
-                                <option value="certificate">Medical Certificate</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="providerFilter">Provider</label>
-                            <select id="providerFilter">
-                                <option value="all">All providers</option>
-                            </select>
+                            <label for="reasonFilter">Reason</label>
+                            <select id="reasonFilter" class="reason-filter"></select>
                         </div>
 
                         <div class="form-group">
@@ -351,20 +284,119 @@
             </section>
 
 
-            <!-- CLINIC STAFF -->
-            <section id="staffSection" hidden>
+            <!-- ===================== PATIENTS + BOOKING HISTORY ===================== -->
+            <section id="view-patients" hidden>
 
-                <div class="card staff-head">
-                    <div>
-                        <span class="section-label">CLINIC STAFF</span>
-                        <h3>Doctors, nurses and dentists</h3>
-                        <p>Patients book with these people. Each one gets a staff dashboard to approve requests and set their own hours.</p>
+                <div class="card toolbar patients-toolbar">
+                    <div class="form-group search">
+                        <label for="patientSearch">Find a patient</label>
+                        <input type="search" id="patientSearch" placeholder="Name, Student/Employee ID or email">
                     </div>
-                    <button type="button" class="btn-primary" id="addStaffBtn">+ Add staff member</button>
+                    <div class="form-group">
+                        <label for="patientSort">Sort by</label>
+                        <select id="patientSort">
+                            <option value="recent">Most recent booking</option>
+                            <option value="name">Name</option>
+                            <option value="visits">Most appointments</option>
+                            <option value="noshows">Most no-shows</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div id="staffList">
-                    <div class="empty-state"><p>Loading the clinic team...</p></div>
+                <p class="result-count" id="patientCount"></p>
+
+                <div id="patientList"></div>
+
+            </section>
+
+
+            <!-- ===================== SETTINGS ===================== -->
+            <section id="view-settings" hidden>
+
+                <div class="settings-grid">
+
+                    <!-- Booking reasons -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">BOOKING</span>
+                            <h3>Reasons patients can choose</h3>
+                            <p>Patients pick one of these when they book. Switched-off reasons are hidden from them but stay on old appointments.</p>
+                        </div>
+
+                        <form class="inline-form" id="reasonForm">
+                            <input type="text" id="reasonName" maxlength="100" placeholder="New reason, e.g. Blood Pressure Check" aria-label="New booking reason">
+                            <button type="submit" class="btn-primary">Add</button>
+                        </form>
+
+                        <ul class="settings-list" id="reasonList"><li class="muted-text">Loading reasons...</li></ul>
+                    </section>
+
+                    <!-- Clinic closures -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">SCHEDULE</span>
+                            <h3>Clinic closures</h3>
+                            <p id="hoursText">No bookings on these dates (holidays, school events).</p>
+                        </div>
+
+                        <form class="inline-form" id="closureForm">
+                            <input type="date" id="closureDate" aria-label="Closed date">
+                            <input type="text" id="closureNote" maxlength="80" placeholder="e.g. Holiday" aria-label="Reason for closing">
+                            <button type="submit" class="btn-primary">Close date</button>
+                        </form>
+
+                        <p class="warn-text" id="closureWarning" hidden></p>
+
+                        <ul class="settings-list" id="closureList"></ul>
+                    </section>
+
+                    <!-- Clinic staff accounts -->
+                    <section class="card settings-wide">
+                        <div class="card-header split">
+                            <div>
+                                <span class="section-label">ACCESS</span>
+                                <h3>Clinic staff accounts</h3>
+                                <p>Everyone listed here signs in with "Admin" on the login page and can approve, decline and manage appointments. Each person has their own login, so the history shows who did what.</p>
+                            </div>
+                            <button type="button" class="btn-primary" id="addStaffBtn">+ Add clinic staff</button>
+                        </div>
+
+                        <div id="staffList"><p class="muted-text">Loading...</p></div>
+                    </section>
+
+                    <!-- My account -->
+                    <section class="card" id="myAccount">
+                        <div class="card-header">
+                            <span class="section-label">MY ACCOUNT</span>
+                            <h3>Your details</h3>
+                        </div>
+
+                        <div class="account-head">
+                            <span class="person-avatar big" id="myAvatar"></span>
+                            <div class="photo-actions">
+                                <button type="button" class="link-btn" id="myPhotoBtn">Add a photo</button>
+                                <button type="button" class="link-btn danger" id="myPhotoRemove" hidden>Remove</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="myName">Name</label>
+                            <input type="text" id="myName" maxlength="60" placeholder="Your full name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="myPosition">Position</label>
+                            <input type="text" id="myPosition" maxlength="40" placeholder="e.g. Nurse, Clinic Doctor">
+                        </div>
+
+                        <p class="muted-text" id="myEmail"></p>
+
+                        <div class="account-actions">
+                            <button type="button" class="btn-secondary" id="myPasswordBtn">Email me a password link</button>
+                            <button type="button" class="btn-primary" id="mySaveBtn">Save</button>
+                        </div>
+                    </section>
+
                 </div>
 
             </section>
@@ -374,54 +406,71 @@
     </main>
 
 
-
-
-<section class="card" id="bookingReasonsManager"
-    style="max-width:1100px;margin:24px auto;padding:24px;">
-
-    <span class="section-label">ADMIN SETTINGS</span>
-    <h3>Manage Booking Reasons</h3>
-
-    <p>
-        Add, rename, activate or deactivate
-        reasons shown to students and employees.
-    </p>
-
-    <form id="reasonAdminForm"
-        style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;">
-
-        <input id="reasonAdminName"
-            maxlength="100"
-            required
-            placeholder="New booking reason"
-            aria-label="New booking reason"
-            style="flex:1;min-width:220px;padding:12px;border:1px solid #d6deeb;border-radius:10px;">
-
-        <button class="btn-primary" type="submit">
-            Add reason
-        </button>
-    </form>
-
-    <div id="reasonAdminList" aria-live="polite">
-        Loading reasons...
-    </div>
-
-    <p id="reasonAdminStatus" role="status"></p>
-</section>
-
-
-
-    
-
     <!-- FOOTER -->
     <footer>
         <p>© 2026 NUFV CARES. All rights reserved.</p>
     </footer>
 
 
-    <!-- CANCEL MODAL (with an optional note the patient will see) -->
-    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+    <!-- APPROVE / INSTRUCTIONS MODAL -->
+    <div class="modal" id="approveModal" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
+        <div class="modal-content wide">
 
+            <div class="modal-header">
+                <div>
+                    <span class="section-label" id="approveLabel">APPROVE REQUEST</span>
+                    <h3 id="approveTitle">Approve this appointment?</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="approveDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="instructionsInput">Pre-appointment instructions <small>(optional, sent to the patient)</small></label>
+                <div class="chip-row" id="instructionChips"></div>
+                <textarea id="instructionsInput" maxlength="600" placeholder="e.g. Please fast for 8 hours before your visit. Water is okay."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Back</button>
+                <button type="button" class="success-btn" id="approveConfirm">Approve and notify patient</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- DECLINE MODAL -->
+    <div class="modal" id="declineModal" role="dialog" aria-modal="true" aria-labelledby="declineTitle">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">REQUEST</span>
+                    <h3 id="declineTitle">Decline this request?</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <p class="modal-text" id="declineDetail"></p>
+
+            <div class="form-group modal-field">
+                <label for="declineReason">Note for the patient <small>(optional)</small></label>
+                <textarea id="declineReason" maxlength="200" placeholder="e.g. The clinic is fully booked that afternoon. Please choose another time."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="cancel-btn" data-close>Back</button>
+                <button type="button" class="danger-btn" id="declineConfirm">Decline and notify patient</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- CANCEL MODAL -->
+    <div class="modal" id="cancelModal" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
         <div class="modal-content">
 
             <div class="modal-header">
@@ -429,39 +478,53 @@
                     <span class="section-label">APPOINTMENT</span>
                     <h3 id="cancelTitle">Cancel this appointment?</h3>
                 </div>
-
-                <button type="button" id="cancelModalClose" class="modal-close" aria-label="Close">×</button>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
             </div>
 
             <p class="modal-text" id="cancelDetail"></p>
 
             <div class="form-group modal-field">
                 <label for="cancelNote">Note for the patient (optional)</label>
-                <textarea id="cancelNote" maxlength="200" placeholder="e.g. The dentist is unavailable that day. Please rebook."></textarea>
+                <textarea id="cancelNote" maxlength="200" placeholder="e.g. The clinic is closed that day. Please rebook."></textarea>
             </div>
 
             <div class="modal-actions">
-                <button type="button" id="cancelKeep" class="cancel-btn">Keep appointment</button>
-                <button type="button" id="cancelConfirm" class="danger-btn">Yes, cancel it</button>
+                <button type="button" class="cancel-btn" data-close>Keep appointment</button>
+                <button type="button" class="danger-btn" id="cancelConfirm">Yes, cancel it</button>
             </div>
 
         </div>
-
     </div>
 
 
-    <!-- ADD / EDIT STAFF MODAL -->
-    <div class="modal" id="staffModal" role="dialog" aria-modal="true" aria-labelledby="staffModalTitle">
+    <!-- PATIENT RECORD + BOOKING HISTORY MODAL -->
+    <div class="modal" id="patientModal" role="dialog" aria-modal="true" aria-labelledby="patientTitle">
+        <div class="modal-content record">
 
+            <div class="modal-header">
+                <div>
+                    <span class="section-label">PATIENT RECORD</span>
+                    <h3 id="patientTitle">Patient</h3>
+                </div>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+            </div>
+
+            <div id="patientBody"><p class="modal-text">Loading...</p></div>
+
+        </div>
+    </div>
+
+
+    <!-- ADD / EDIT CLINIC STAFF MODAL -->
+    <div class="modal" id="staffModal" role="dialog" aria-modal="true" aria-labelledby="staffModalTitle">
         <div class="modal-content">
 
             <div class="modal-header">
                 <div>
                     <span class="section-label">CLINIC STAFF</span>
-                    <h3 id="staffModalTitle">Add a doctor, nurse or dentist</h3>
+                    <h3 id="staffModalTitle">Add clinic staff</h3>
                 </div>
-
-                <button type="button" id="staffModalClose" class="modal-close" aria-label="Close">×</button>
+                <button type="button" class="modal-close" data-close aria-label="Close">×</button>
             </div>
 
             <div class="form-group modal-field">
@@ -470,38 +533,28 @@
             </div>
 
             <div class="form-group modal-field">
-                <label for="staffEmailInput">Work email (their login)</label>
+                <label for="staffEmailInput">Email (their login)</label>
                 <input type="email" id="staffEmailInput" maxlength="100" placeholder="e.g. msantos@nu-fairview.edu.ph">
             </div>
 
             <div class="form-group modal-field">
-                <label for="staffTypeInput">Role</label>
-                <select id="staffTypeInput">
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="dentist">Dentist</option>
-                </select>
+                <label for="staffPositionInput">Position</label>
+                <input type="text" id="staffPositionInput" maxlength="40" placeholder="e.g. Nurse, Clinic Doctor, Clinic Staff">
             </div>
 
-            <fieldset class="form-group modal-field">
-                <legend>Services they handle</legend>
-                <div class="check-grid" id="staffServices"></div>
-            </fieldset>
-
             <p class="modal-text small-note" id="staffCreateNote">
-                An account is created for this email and they receive a link to set their own password.
-                Default weekly hours are added; they can change them from their dashboard.
+                An account is made for this email and they get a link to set their own password.
+                They then log in by choosing "Admin" on the login page.
             </p>
 
             <p class="error-text" id="staffError" role="alert"></p>
 
             <div class="modal-actions">
-                <button type="button" id="staffCancel" class="cancel-btn">Cancel</button>
-                <button type="button" id="staffSave" class="btn-primary">Create account</button>
+                <button type="button" class="cancel-btn" data-close>Cancel</button>
+                <button type="button" class="btn-primary" id="staffSave">Create account</button>
             </div>
 
         </div>
-
     </div>
 
 

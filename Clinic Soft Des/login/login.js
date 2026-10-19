@@ -2,6 +2,7 @@ import { auth, db } from "../firebase/firebase.js";
 import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 import { ADMIN_UID } from "../shared/config.js";
+import { adminRecord } from "../shared/access.js";
 
 const loginForm = document.getElementById("loginForm");
 
@@ -14,8 +15,9 @@ const emailError = document.getElementById("loginEmailError");
 const passwordError = document.getElementById("loginPasswordError");
 const loginMessage = document.getElementById("loginMessage");
 
-// Admin accounts are NOT registrable. Create them manually in
-// Firebase Console > Authentication > Add user, then list the email here.
+// Admin accounts are NOT registrable. The main admin (ADMIN_UID in
+// shared/config.js, or an email listed here) adds the other clinic staff
+// from the admin page: Settings > Clinic staff accounts.
 const ADMIN_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real admin email
 
 const DESTINATIONS = {
@@ -83,11 +85,20 @@ passwordField.addEventListener("input", () => {
 // otherwise a message (and the user is signed out again).
 // ==========================================
 async function checkRole(user, role) {
-  const isAdminAccount = user.uid === ADMIN_UID || ADMIN_EMAILS.includes((user.email || "").toLowerCase());
+  // Clinic staff: the main admin, or an active account in admins/{uid}
+  const record = user.uid === ADMIN_UID ? null : await adminRecord(user.uid);
+  const isAdminAccount = user.uid === ADMIN_UID ||
+    ADMIN_EMAILS.includes((user.email || "").toLowerCase()) ||
+    record?.active === true;
+
+  if (role === "admin" && record && record.active !== true) {
+    await signOut(auth);
+    return "Your clinic staff access was removed. Please ask the main admin.";
+  }
 
   if ((role === "admin") !== isAdminAccount) {
     await signOut(auth);
-    return "This account is not " + (role === "admin" ? "an admin" : "a " + ROLE_NAMES[role]) + " account.";
+    return "This account is not " + (role === "admin" ? "an admin / clinic staff" : "a " + ROLE_NAMES[role]) + " account.";
   }
 
   // Student / Employee: the account must exist in the matching folder

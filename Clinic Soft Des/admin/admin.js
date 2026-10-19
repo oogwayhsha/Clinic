@@ -1,11 +1,10 @@
 // ==========================================
-// ADMIN: oversee all appointments + manage the clinic staff
+// ADMIN / CLINIC STAFF DASHBOARD
+// Every clinic staff account signs in here: approve or decline
+// requests, follow the schedule, look up a patient's booking history
+// and manage reasons, closures and staff accounts.
 // ==========================================
 import { app, auth, db } from "../firebase/firebase.js";
-
-
-import { DEFAULT_REASONS } from "../shared/reasons.js";
-
 
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 
@@ -23,42 +22,61 @@ import {
     get,
     set,
     update,
+    push,
+    query,
+    orderByKey,
+    startAt,
     onValue,
+    runTransaction,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 import { ADMIN_UID, SWEEP_MS } from "../shared/config.js";
 
 import {
-    SERVICES,
-    STAFF_TYPES,
-    DEFAULT_AVAILABILITY,
+    HOURS_TEXT,
     toDateKey,
     parseDateKey,
     formatTime,
     endTime,
+    formatRange,
     formatDateLong,
+    formatDateShort,
+    formatMoment,
+    slotKey,
     escapeHtml,
-    describeDays,
-    rangesFor,
-    staffDisplayName,
-    staffTypeLabel,
     statusOf,
     stateOf,
     stateLabel,
     STATE_INFO,
     startOf,
+    reasonOf,
+    isActive,
+    reminderTimes,
     historyTimelineHtml
 } from "../shared/clinic.js";
 
-import { loadAvatars, avatarInner } from "../shared/avatar.js";
+import { DEFAULT_REASONS, REASON_MAX, allReasons } from "../shared/reasons.js";
+import { adminRecord } from "../shared/access.js";
 import { mountBell } from "../shared/notify.js";
 
 import {
+    loadAvatar,
+    saveAvatar,
+    avatarInner,
+    pickImage,
+    shrinkImage,
+    photoErrorMessage
+} from "../shared/avatar.js";
+
+import {
+    CLINIC_CHANNEL,
     approveAppointment,
+    declineAppointment,
     cancelAppointment,
     completeAppointment,
     markMissed,
+    updateInstructions,
     sweepAppointments
 } from "../shared/actions.js";
 
@@ -95,16 +113,19 @@ document.addEventListener("DOMContentLoaded", () => {
             ? [p.program, p.yearLevel].filter(Boolean).join(" · ")
             : (p.department || "");
     };
-    const providerName = (a) => a.staffName || (a.staffId && staff[a.staffId] ? staffDisplayName(staff[a.staffId]) : "Unassigned");
-    const whenOf = (a) => startOf(a);
-    const serviceName = (a) => SERVICES[a.service]?.name || a.serviceName || "Appointment";
+    const todayKey = () => toDateKey(new Date());
 
-    // Filters use the stored status (pending / approved / ...),
-    // badges show the live state (e.g. "Needs confirmation")
+    // "1 booking", "2 bookings"
+    const counted = (n, word, cls = "") =>
+        `<span class="${cls}"><strong>${n}</strong> ${word}${n === 1 ? "" : "s"}</span>`;
+
     const badge = (a) => {
         const state = stateOf(a);
         return `<span class="badge ${STATE_INFO[state]?.cls || "pending"}">${escapeHtml(stateLabel(a, state))}</span>`;
     };
+
+    const nameButton = (a) =>
+        `<button type="button" class="name-btn" data-patient="${escapeHtml(a.uid)}" title="Open booking history">${escapeHtml(patientName(a))}</button>`;
 
 
     /* =========================================
@@ -112,108 +133,162 @@ document.addEventListener("DOMContentLoaded", () => {
     ========================================= */
 
     let adminUser = null;
-    let adminName = "";
+    let myRecord = {};          // admins/{uid}
+    let myPhoto = null;
 
-    let all = [];
-    let profiles = {};         // uid -> student / employee record
-    let staff = {};            // uid -> clinic staff record
-    let staffPhotos = {};      // uid -> photo
+    let all = [];               // every appointment
+    let profiles = {};          // uid -> student / employee record
+    let admins = {};            // uid -> clinic staff account
+    let reasonsData = null;     // bookingReasons
+    let closures = {};          // clinicClosures/{date} = note
+    let slotIndex = {};         // timeSlots/{date}/{HHMM} = appointment id
     let loaded = false;
-    let busy = false;          // an action is being saved
+    let slotsLoaded = false;
+    let repaired = false;
+    let busy = false;
 
-    const filters = { range: "all", status: "all", service: "all", role: "all", provider: "all", search: "" };
+    const filters = { range: "all", status: "all", reason: "all", role: "all", search: "" };
 
-    let pendingCancel = null;
+    let currentView = "weekly";
+    let modalAppt = null;
+    let instructionsOnly = false;
     let editingStaffId = null;
+    let highlightId = null;
 
-    const actor = () => ({ uid: adminUser.uid, name: adminName, role: "admin" });
+    const actor = () => ({ uid: adminUser.uid, name: myName(), role: "admin" });
+    const myName = () => myRecord.name || adminUser.displayName || adminUser.email || "Clinic staff";
 
 
     /* =========================================
-       LOAD
-       Appointments + staff are live; patient profiles are read once.
+       LIVE DATA
     ========================================= */
-
-    async function loadProfiles() {
-
-        const [studentSnap, employeeSnap] = await Promise.all([
-            get(ref(db, "students")),
-            get(ref(db, "employees"))
-        ]);
-
-        profiles = {};
-
-        Object.entries(studentSnap.val() || {}).forEach(([uid, p]) => {
-            profiles[uid] = { ...p, role: "student" };
-        });
-
-        Object.entries(employeeSnap.val() || {}).forEach(([uid, p]) => {
-            profiles[uid] = { ...p, role: "employee" };
-        });
-    }
-
-    function showLoadError() {
-        $("appointmentList").innerHTML = `
-            <div class="empty-state">
-                <h4>We couldn't load the appointments</h4>
-                <p>Check your connection and that the latest database rules are published, then reload.</p>
-            </div>
-        `;
-        $("resultCount").textContent = "";
-    }
 
     function watchData() {
 
         onValue(ref(db, "appointments"), (snapshot) => {
             all = Object.entries(snapshot.val() || {}).map(([id, value]) => ({ id, ...value }));
             loaded = true;
+            repairSlots();
             render();
+            openLinkedAppointment();
         }, (error) => {
             console.error("Failed to load appointments:", error);
-            showLoadError();
+            $("appointmentList").innerHTML = `
+                <div class="empty-state">
+                    <h4>We couldn't load the appointments</h4>
+                    <p>Check your connection and that the latest database rules are published, then reload.</p>
+                </div>`;
         });
 
-        onValue(ref(db, "staff"), (snapshot) => {
-            staff = snapshot.val() || {};
-            fillProviderFilters();
-            renderStaff();
-            loadAvatars(Object.keys(staff)).then((photos) => {
-                staffPhotos = photos;
-                renderStaff();
-            });
+        const watchProfiles = (folder, role) => onValue(ref(db, folder), (snapshot) => {
+            Object.keys(profiles).forEach((uid) => { if (profiles[uid].role === role) delete profiles[uid]; });
+            Object.entries(snapshot.val() || {}).forEach(([uid, p]) => { profiles[uid] = { ...p, role }; });
             if (loaded) render();
-        }, (error) => console.error("Failed to load staff:", error));
+        }, (error) => console.warn(`Could not load ${folder}:`, error));
+
+        watchProfiles("students", "student");
+        watchProfiles("employees", "employee");
+
+        onValue(ref(db, "admins"), (snapshot) => {
+            admins = snapshot.val() || {};
+            renderStaff();
+        }, (error) => console.warn("Could not load staff accounts:", error));
+
+        onValue(ref(db, "bookingReasons"), (snapshot) => {
+            reasonsData = snapshot.val();
+            if (!reasonsData) seedReasons();
+            fillReasonFilters();
+            renderReasonsAdmin();
+        }, (error) => console.warn("Could not load reasons:", error));
+
+        onValue(ref(db, "clinicClosures"), (snapshot) => {
+            closures = snapshot.val() || {};
+            renderClosures();
+        }, (error) => console.warn("Could not load closures:", error));
+
+        onValue(query(ref(db, "timeSlots"), orderByKey(), startAt(todayKey())), (snapshot) => {
+            slotIndex = snapshot.val() || {};
+            slotsLoaded = true;
+            repairSlots();
+        }, (error) => console.warn("Could not load time slots:", error));
+
+        onValue(ref(db, ".info/connected"), (snapshot) => {
+            const online = snapshot.val() === true;
+            $("livePill").classList.toggle("offline", !online);
+            $("livePill").lastChild.textContent = online ? " Live" : " Reconnecting...";
+        });
+    }
+
+    // Upcoming pending/approved appointments must hold their slot, so the
+    // booking page shows it as taken. Fills in any that don't (e.g. made
+    // before this version). Runs once per page load.
+    async function repairSlots() {
+
+        if (repaired || !loaded || !slotsLoaded) return;
+        repaired = true;
+
+        const changes = {};
+
+        all.filter((a) => isActive(a) && a.date && a.time && startOf(a) > new Date())
+            .forEach((a) => {
+                const key = slotKey(a.time);
+                if (!slotIndex[a.date]?.[key] && !changes[`timeSlots/${a.date}/${key}`]) {
+                    changes[`timeSlots/${a.date}/${key}`] = a.id;
+                }
+            });
+
+        for (const [path, id] of Object.entries(changes)) {
+            await set(ref(db, path), id).catch((error) => console.warn("Slot repair skipped:", path, error));
+        }
     }
 
 
     /* =========================================
-       FILTER + RENDER
+       FILTERS
     ========================================= */
 
-    function fillProviderFilters() {
+    const STATUS_OPTIONS = [
+        ["all", "All statuses"],
+        ["active", "Not cancelled"],
+        ["pending", "Pending approval"],
+        ["approved", "Approved"],
+        ["completed", "Completed"],
+        ["missed", "No-show"],
+        ["cancelled", "Cancelled"],
+        ["declined", "Declined"]
+    ];
 
-        const options = Object.entries(staff)
-            .sort(([, a], [, b]) => staffDisplayName(a).localeCompare(staffDisplayName(b)))
-            .map(([id, s]) => `<option value="${escapeHtml(id)}">${escapeHtml(staffDisplayName(s))}</option>`)
-            .join("");
+    document.querySelectorAll(".status-select").forEach((select) => {
+        STATUS_OPTIONS.forEach(([value, label]) => select.add(new Option(label, value)));
+    });
 
-        ["providerFilter", "weekProviderFilter"].forEach((id) => {
-            const select = $(id);
-            const current = select.value;
-            select.innerHTML = `<option value="all">All providers</option><option value="none">Unassigned</option>${options}`;
-            select.value = [...select.options].some((o) => o.value === current) ? current : "all";
+    function reasonNames() {
+        const names = new Set(allReasons(reasonsData).map((r) => r.name));
+        if (!reasonsData) DEFAULT_REASONS.forEach((n) => names.add(n));
+        all.forEach((a) => names.add(reasonOf(a)));
+        return [...names].sort((a, b) => a.localeCompare(b));
+    }
+
+    function fillReasonFilters() {
+        const names = reasonNames();
+        document.querySelectorAll(".reason-filter").forEach((select) => {
+            const current = select.value || "all";
+            select.replaceChildren(new Option("All reasons", "all"));
+            names.forEach((n) => select.add(new Option(n, n)));
+            select.value = names.includes(current) ? current : "all";
         });
     }
 
-    const matchesProvider = (a, provider) =>
-        provider === "all" || (provider === "none" ? !a.staffId : a.staffId === provider);
+    const matchesStatus = (a, status) =>
+        status === "all" ||
+        (status === "active" ? !["cancelled", "declined"].includes(statusOf(a)) : statusOf(a) === status);
 
     const matchesSearch = (a, term) =>
-        !term || `${patientName(a)} ${patientId(a)} ${serviceName(a)} ${providerName(a)}`.toLowerCase().includes(term);
+        !term || `${patientName(a)} ${patientId(a)} ${reasonOf(a)} ${patientEmail(a)}`.toLowerCase().includes(term);
 
     function filtered() {
 
-        const today = toDateKey(new Date());
+        const today = todayKey();
         const term = filters.search.trim().toLowerCase();
 
         return all.filter((a) => {
@@ -224,101 +299,164 @@ document.addEventListener("DOMContentLoaded", () => {
             if (filters.range === "upcoming" && date < today) return false;
             if (filters.range === "past" && date >= today) return false;
 
-            if (filters.status !== "all" && statusOf(a) !== filters.status) return false;
-            if (filters.service !== "all" && a.service !== filters.service) return false;
+            if (!matchesStatus(a, filters.status)) return false;
+            if (filters.reason !== "all" && reasonOf(a) !== filters.reason) return false;
             if (filters.role !== "all" && patientRole(a) !== filters.role) return false;
-            if (!matchesProvider(a, filters.provider)) return false;
 
             return matchesSearch(a, term);
         });
     }
 
     function sortList(list) {
-
         // Today / upcoming: soonest first. Past / all: newest first.
         const newestFirst = filters.range === "past" || filters.range === "all";
-
-        return list.sort((a, b) => newestFirst
-            ? whenOf(b) - whenOf(a)
-            : whenOf(a) - whenOf(b));
+        return list.sort((a, b) => newestFirst ? startOf(b) - startOf(a) : startOf(a) - startOf(b));
     }
+
+    // Two active appointments in one slot (only possible with old data)
+    function conflicts() {
+        const seen = {};
+        const clash = new Set();
+        all.filter(isActive).forEach((a) => {
+            const key = `${a.date} ${a.time}`;
+            if (seen[key]) { clash.add(a.id); clash.add(seen[key]); } else seen[key] = a.id;
+        });
+        return clash;
+    }
+
+
+    /* =========================================
+       STATS (each card opens its list)
+    ========================================= */
+
+    const STAT_VIEWS = {
+        today:     { range: "today",    status: "active" },
+        pending:   { range: "upcoming", status: "pending" },
+        approved:  { range: "upcoming", status: "approved" },
+        completed: { range: "all",      status: "completed" }
+    };
 
     function renderStats() {
 
-        const today = toDateKey(new Date());
+        const today = todayKey();
+        const pending = all.filter((a) => stateOf(a) === "pending").length;
 
-        $("statToday").textContent = all.filter((a) => a.date === today && !["cancelled", "declined"].includes(statusOf(a))).length;
-        $("statPending").textContent = all.filter((a) => stateOf(a) === "pending").length;
-        $("statConfirmed").textContent = all.filter((a) => statusOf(a) === "approved" && (a.date || "") >= today).length;
+        $("statToday").textContent = all.filter((a) => a.date === today && matchesStatus(a, "active")).length;
+        $("statPending").textContent = pending;
+        $("statApproved").textContent = all.filter((a) => statusOf(a) === "approved" && (a.date || "") >= today).length;
         $("statCompleted").textContent = all.filter((a) => statusOf(a) === "completed").length;
+
+        $("pendingBadge").textContent = pending;
+        $("pendingBadge").hidden = pending === 0;
     }
 
-    // Which buttons make sense for this appointment right now
+    function syncListControls() {
+        document.querySelectorAll("#rangeFilters .filter").forEach((b) => {
+            b.classList.toggle("active", b.dataset.range === filters.range);
+        });
+        $("statusFilter").value = filters.status;
+        $("reasonFilter").value = filters.reason;
+        $("roleFilter").value = filters.role;
+        $("searchInput").value = filters.search;
+    }
+
+    function markStat(name) {
+        document.querySelectorAll("[data-stat]").forEach((card) => {
+            const on = card.dataset.stat === name;
+            card.classList.toggle("active", on);
+            card.setAttribute("aria-pressed", String(on));
+        });
+    }
+
+    document.querySelectorAll("[data-stat]").forEach((card) => {
+        card.addEventListener("click", () => {
+            Object.assign(filters, { reason: "all", role: "all", search: "" }, STAT_VIEWS[card.dataset.stat]);
+            syncListControls();
+            markStat(card.dataset.stat);
+            showView("list");
+            $("view-list").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+
+
+    /* =========================================
+       APPOINTMENT ACTIONS (buttons)
+    ========================================= */
+
     function actionsFor(a) {
 
         const status = statusOf(a);
-        const now = new Date();
-        const started = whenOf(a) <= now;
-        const todayOrEarlier = (a.date || "") <= toDateKey(now);
+        const started = startOf(a) <= new Date();
+        const todayOrEarlier = (a.date || "") <= todayKey();
 
-        if (status === "pending") {
-            return started ? ["cancel"] : ["approve", "cancel"];
-        }
+        if (status === "pending") return started ? ["cancel"] : ["approve", "decline"];
 
         if (status === "approved") {
             const actions = [];
             if (todayOrEarlier) actions.push("complete");
-            actions.push(started ? "missed" : "cancel");
+            if (started) actions.push("missed");
+            else actions.push("instructions", "cancel");
             return actions;
         }
 
         return [];
     }
 
-    const ACTION_BUTTONS = {
-        approve:  '<button type="button" class="link-btn primary" data-action="approve" data-id="__ID__">Approve</button>',
-        complete: '<button type="button" class="link-btn success" data-action="complete" data-id="__ID__">Mark completed</button>',
-        missed:   '<button type="button" class="link-btn" data-action="missed" data-id="__ID__">Mark no-show</button>',
-        cancel:   '<button type="button" class="link-btn danger" data-action="cancel" data-id="__ID__">Cancel</button>'
+    const ACTION_LABELS = {
+        approve:      ["primary", "Approve"],
+        decline:      ["danger", "Decline"],
+        instructions: ["", "Instructions"],
+        complete:     ["success", "Completed"],
+        missed:       ["", "No-show"],
+        cancel:       ["danger", "Cancel"]
     };
 
-    const buttonsFor = (a) => actionsFor(a)
-        .map((action) => ACTION_BUTTONS[action].replace("__ID__", escapeHtml(a.id)))
-        .join("");
+    const buttonsFor = (a) => actionsFor(a).map((action) => {
+        const [cls, label] = ACTION_LABELS[action];
+        return `<button type="button" class="link-btn ${cls}" data-action="${action}" data-id="${escapeHtml(a.id)}">${label}</button>`;
+    }).join("");
 
-    function card(a) {
+    function attendanceLine(a) {
+        const state = stateOf(a);
+        const t = reminderTimes(a);
+        if (state === "approved") return `Confirmation request goes out ${formatMoment(t.first)}`;
+        if (state === "awaiting") return `Asked to confirm · auto-cancels ${formatMoment(t.deadline)} if no reply`;
+        if (state === "attending" && startOf(a) > new Date()) return "Patient confirmed they're coming";
+        return "";
+    }
+
+    function card(a, clash) {
 
         const phone = patientPhone(a);
         const id = patientId(a);
         const role = patientRole(a);
         const email = patientEmail(a);
         const detail = patientDetail(a);
-
         const end = a.time ? formatTime(endTime(a.time)) : "";
         const buttons = buttonsFor(a);
+        const attendance = attendanceLine(a);
 
         return `
-            <article class="appt-card">
+            <article class="appt-card${a.id === highlightId ? " highlight" : ""}" id="appt-${escapeHtml(a.id)}">
                 <div class="appt-time">
                     ${a.time ? formatTime(a.time) : "--"}
                     <small>${end ? `until ${end}` : ""}</small>
                 </div>
 
                 <div class="appt-info">
-                    <h4>${escapeHtml(patientName(a))}</h4>
+                    <h4>${nameButton(a)}</h4>
 
                     <div class="appt-meta">
                         <span class="type-chip ${role}">${role}</span>
                         ${id ? `<span>${escapeHtml(id)}</span>` : ""}
                         ${detail ? `<span>${escapeHtml(detail)}</span>` : ""}
-                        <span>${escapeHtml(serviceName(a))}</span>
                         ${phone ? `<a href="tel:${escapeHtml(phone)}">${escapeHtml(phone)}</a>` : ""}
                         ${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : ""}
+                        ${clash.has(a.id) ? '<span class="type-chip clash">Double-booked</span>' : ""}
                     </div>
 
-                    <p class="appt-provider">with ${escapeHtml(providerName(a))}</p>
-
-                    ${a.reason ? `<p class="appt-reason">${escapeHtml(a.reason)}</p>` : ""}
+                    <p class="appt-reason-title">${escapeHtml(reasonOf(a))}</p>
+                    ${attendance ? `<p class="appt-handled">${escapeHtml(attendance)}</p>` : ""}
                     ${a.instructions ? `<p class="appt-reason"><strong>Instructions:</strong> ${escapeHtml(a.instructions)}</p>` : ""}
                     ${a.clinicNote ? `<p class="appt-reason"><strong>Note sent:</strong> ${escapeHtml(a.clinicNote)}</p>` : ""}
                     ${a.declineReason ? `<p class="appt-reason"><strong>Declined:</strong> ${escapeHtml(a.declineReason)}</p>` : ""}
@@ -334,8 +472,9 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
+
     /* =========================================
-       WEEKLY SCHEDULE LOGIC
+       WEEKLY SCHEDULE
     ========================================= */
 
     function getMonday(d) {
@@ -348,14 +487,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let currentWeekMonday = getMonday(new Date());
-    let currentViewMode = "weekly"; // "weekly" | "list" | "staff"
     let weeklyDisplayMode = "table"; // "table" | "grid"
-    const weekFilters = { status: "all", service: "all", provider: "all", search: "" };
+    const weekFilters = { status: "all", reason: "all", search: "" };
 
     function getWeekDays(monday) {
         const days = [];
         const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        const todayKey = toDateKey(new Date());
+        const today = todayKey();
 
         for (let i = 0; i < 6; i++) {
             const d = new Date(monday);
@@ -366,25 +504,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 dateKey,
                 dayName: dayNames[i],
                 displayDate: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-                fullDate: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-                isToday: dateKey === todayKey
-            });
-        }
-
-        // Check if there are Sunday appointments in this week
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        const sunKey = toDateKey(sunday);
-        const hasSundayAppointments = all.some((a) => a.date === sunKey);
-
-        if (hasSundayAppointments) {
-            days.push({
-                date: sunday,
-                dateKey: sunKey,
-                dayName: "Sunday",
-                displayDate: sunday.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-                fullDate: sunday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-                isToday: sunKey === todayKey
+                isToday: dateKey === today,
+                closed: closures[dateKey] || ""
             });
         }
 
@@ -397,16 +518,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         return all.filter((a) => {
             if (!a.date || !dayKeys.has(a.date)) return false;
-
-            if (weekFilters.status !== "all" && statusOf(a) !== weekFilters.status) return false;
-            if (weekFilters.service !== "all" && a.service !== weekFilters.service) return false;
-            if (!matchesProvider(a, weekFilters.provider)) return false;
-
+            if (!matchesStatus(a, weekFilters.status)) return false;
+            if (weekFilters.reason !== "all" && reasonOf(a) !== weekFilters.reason) return false;
             return matchesSearch(a, term);
-        }).sort((a, b) => whenOf(a) - whenOf(b));
+        }).sort((a, b) => startOf(a) - startOf(b));
     }
 
     function renderWeeklySchedule() {
+
         if (!loaded) return;
 
         const weekDays = getWeekDays(currentWeekMonday);
@@ -416,14 +535,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const endStr = lastDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         $("currentWeekRange").textContent = `${startStr} – ${endStr}`;
 
-        const thisWeekMon = getMonday(new Date());
-        const isThisWeek = toDateKey(currentWeekMonday) === toDateKey(thisWeekMon);
-        $("currentWeekBadge").hidden = !isThisWeek;
+        $("currentWeekBadge").hidden = toDateKey(currentWeekMonday) !== toDateKey(getMonday(new Date()));
 
-        // Appointments in this week
         const weekList = filteredWeekAppointments(weekDays);
-
-        // Stats summary for the selected week
         const allWeekList = all.filter((a) => weekDays.some((d) => d.dateKey === a.date));
         const count = (status) => allWeekList.filter((a) => statusOf(a) === status).length;
 
@@ -434,101 +548,58 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="summary-pill completed">Completed: <strong>${count("completed")}</strong></span>
         `;
 
-        if (weeklyDisplayMode === "table") {
-            renderWeeklyTable(weekDays, weekList);
-        } else {
-            renderWeeklyGrid(weekDays, weekList);
-        }
+        if (weeklyDisplayMode === "table") renderWeeklyTable(weekDays, weekList);
+        else renderWeeklyGrid(weekDays, weekList);
     }
 
     function renderWeeklyTable(weekDays, weekList) {
+
         if (weekList.length === 0) {
             $("weeklyContentArea").innerHTML = `
                 <div class="card empty-state">
-                    <h4>No appointments scheduled for this week</h4>
-                    <p>There are no appointments matching your filters for ${$("currentWeekRange").textContent}.</p>
-                    <button type="button" class="btn-primary" id="jumpThisWeekBtn">Jump to Current Week</button>
+                    <h4>No appointments this week</h4>
+                    <p>Nothing matches your filters for ${escapeHtml($("currentWeekRange").textContent)}.</p>
+                    <button type="button" class="btn-primary" data-jump-week>Jump to current week</button>
                 </div>
             `;
-            const jumpBtn = $("jumpThisWeekBtn");
-            if (jumpBtn) {
-                jumpBtn.addEventListener("click", () => {
-                    currentWeekMonday = getMonday(new Date());
-                    Object.assign(weekFilters, { status: "all", service: "all", provider: "all", search: "" });
-                    $("weekStatusFilter").value = "all";
-                    $("weekServiceFilter").value = "all";
-                    $("weekProviderFilter").value = "all";
-                    $("weekSearchInput").value = "";
-                    renderWeeklySchedule();
-                });
-            }
             return;
         }
 
-        const todayKey = toDateKey(new Date());
+        const today = todayKey();
+        const clash = conflicts();
 
         const rowsHtml = weekList.map((a) => {
-            const phone = patientPhone(a);
             const id = patientId(a);
-            const role = patientRole(a);
-            const email = patientEmail(a);
             const detail = patientDetail(a);
-            const isToday = a.date === todayKey;
-
-            const end = a.time ? formatTime(endTime(a.time)) : "";
             const dayObj = weekDays.find((d) => d.dateKey === a.date);
-            const dayLabel = dayObj ? dayObj.dayName : "Unknown";
-            const dateLabel = dayObj ? dayObj.displayDate : (a.date || "");
-
             const buttons = buttonsFor(a);
 
             return `
-                <tr class="${isToday ? "is-today" : ""}">
+                <tr class="${a.date === today ? "is-today" : ""}">
                     <td>
                         <div class="table-day-cell">
-                            <strong>${escapeHtml(dayLabel)}</strong>
-                            <small>${escapeHtml(dateLabel)}</small>
-                            ${isToday ? `<span class="table-today-pill">Today</span>` : ""}
+                            <strong>${escapeHtml(dayObj ? dayObj.dayName : "")}</strong>
+                            <small>${escapeHtml(dayObj ? dayObj.displayDate : a.date || "")}</small>
+                            ${a.date === today ? '<span class="table-today-pill">Today</span>' : ""}
                         </div>
                     </td>
-                    <td>
-                        <span class="table-time-pill">${a.time ? formatTime(a.time) : "--"}${end ? ` – ${end}` : ""}</span>
-                    </td>
+                    <td><span class="table-time-pill">${a.time ? formatRange(a.time) : "--"}</span></td>
                     <td>
                         <div class="table-patient-cell">
-                            <strong>${escapeHtml(patientName(a))}</strong>
+                            ${nameButton(a)}
                             <div class="table-patient-meta">
-                                <span class="type-chip ${role}">${role}</span>
+                                <span class="type-chip ${patientRole(a)}">${patientRole(a)}</span>
+                                ${clash.has(a.id) ? '<span class="type-chip clash">Double-booked</span>' : ""}
                             </div>
                         </div>
                     </td>
                     <td>
                         ${id ? `<div><strong>${escapeHtml(id)}</strong></div>` : ""}
-                        ${detail ? `<small style="color:var(--muted)">${escapeHtml(detail)}</small>` : ""}
+                        ${detail ? `<small class="muted-text">${escapeHtml(detail)}</small>` : ""}
                     </td>
-                    <td>
-                        <span class="table-service-pill ${escapeHtml(a.service || "consultation")}">
-                            ${escapeHtml(serviceName(a))}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="table-provider">${escapeHtml(providerName(a))}</span>
-                    </td>
-                    <td>
-                        <div class="table-contact-links">
-                            ${phone ? `<a href="tel:${escapeHtml(phone)}" title="Call">${escapeHtml(phone)}</a>` : ""}
-                            ${email ? `<a href="mailto:${escapeHtml(email)}" title="Email">${escapeHtml(email)}</a>` : ""}
-                            ${!phone && !email ? `<span style="color:var(--muted)">--</span>` : ""}
-                        </div>
-                    </td>
-                    <td>
-                        ${badge(a)}
-                    </td>
-                    <td>
-                        <div class="table-actions-cell">
-                            ${buttons || `<span style="color:var(--muted); font-size:12px;">No actions</span>`}
-                        </div>
-                    </td>
+                    <td><span class="table-reason">${escapeHtml(reasonOf(a))}</span></td>
+                    <td>${badge(a)}</td>
+                    <td><div class="table-actions-cell">${buttons || '<span class="muted-text">No actions</span>'}</div></td>
                 </tr>
             `;
         }).join("");
@@ -539,20 +610,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     <table class="schedule-table">
                         <thead>
                             <tr>
-                                <th>Day & Date</th>
+                                <th>Day &amp; Date</th>
                                 <th>Time Slot</th>
                                 <th>Patient</th>
                                 <th>ID / Details</th>
-                                <th>Service</th>
-                                <th>Provider</th>
-                                <th>Contact</th>
+                                <th>Reason</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${rowsHtml}
-                        </tbody>
+                        <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
             </div>
@@ -560,63 +627,63 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderWeeklyGrid(weekDays, weekList) {
+
         const colsHtml = weekDays.map((day) => {
             const dayAppts = weekList.filter((a) => a.date === day.dateKey);
 
-            const cardsHtml = dayAppts.length === 0
-                ? `<div class="col-empty-msg">No appointments</div>`
-                : dayAppts.map((a) => {
-                    const role = patientRole(a);
-                    const id = patientId(a);
-                    const end = a.time ? formatTime(endTime(a.time)) : "";
-                    const buttons = buttonsFor(a);
-
-                    return `
-                        <div class="day-grid-card">
-                            <div class="grid-card-top">
-                                <span class="grid-card-time">${a.time ? formatTime(a.time) : "--"}${end ? ` until ${end}` : ""}</span>
-                                ${badge(a)}
-                            </div>
-                            <div class="grid-card-patient">
-                                <h5>${escapeHtml(patientName(a))}</h5>
-                                <div class="grid-card-meta">
-                                    <span class="type-chip ${role}">${role}</span>
-                                    ${id ? `<span>${escapeHtml(id)}</span>` : ""}
+            const cardsHtml = day.closed && dayAppts.length === 0
+                ? `<div class="col-empty-msg">Clinic closed<br><small>${escapeHtml(day.closed)}</small></div>`
+                : dayAppts.length === 0
+                    ? '<div class="col-empty-msg">No appointments</div>'
+                    : dayAppts.map((a) => {
+                        const buttons = buttonsFor(a);
+                        return `
+                            <div class="day-grid-card">
+                                <div class="grid-card-top">
+                                    <span class="grid-card-time">${a.time ? formatTime(a.time) : "--"}</span>
+                                    ${badge(a)}
                                 </div>
+                                <div class="grid-card-patient">
+                                    <h5>${nameButton(a)}</h5>
+                                    <div class="grid-card-meta">
+                                        <span class="type-chip ${patientRole(a)}">${patientRole(a)}</span>
+                                        ${patientId(a) ? `<span>${escapeHtml(patientId(a))}</span>` : ""}
+                                    </div>
+                                </div>
+                                <div class="grid-card-service">${escapeHtml(reasonOf(a))}</div>
+                                ${buttons ? `<div class="grid-card-actions">${buttons}</div>` : ""}
                             </div>
-                            <div class="grid-card-service">
-                                ${escapeHtml(serviceName(a))} · ${escapeHtml(providerName(a))}
-                            </div>
-                            ${buttons ? `<div class="grid-card-actions">${buttons}</div>` : ""}
-                        </div>
-                    `;
-                }).join("");
+                        `;
+                    }).join("");
 
             return `
                 <div class="week-day-col ${day.isToday ? "today" : ""}">
                     <div class="day-col-header">
                         <div class="day-col-title">
                             <strong>${escapeHtml(day.dayName)}</strong>
-                            <span>${escapeHtml(day.displayDate)}</span>
+                            <span>${escapeHtml(day.displayDate)}${day.closed ? " · Closed" : ""}</span>
                         </div>
                         <span class="day-count-badge">${dayAppts.length}</span>
                     </div>
-                    <div class="day-col-cards">
-                        ${cardsHtml}
-                    </div>
+                    <div class="day-col-cards">${cardsHtml}</div>
                 </div>
             `;
         }).join("");
 
-        $("weeklyContentArea").innerHTML = `
-            <div class="week-grid-board">
-                ${colsHtml}
-            </div>
-        `;
+        $("weeklyContentArea").innerHTML = `<div class="week-grid-board">${colsHtml}</div>`;
     }
 
+
+    /* =========================================
+       ALL APPOINTMENTS (list)
+    ========================================= */
+
     function renderList() {
+
+        if (!loaded) return;
+
         const list = sortList(filtered());
+        const clash = conflicts();
 
         $("resultCount").textContent =
             `Showing ${list.length} of ${all.length} appointment${all.length === 1 ? "" : "s"}`;
@@ -631,7 +698,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // Group by date
         const groups = new Map();
 
         list.forEach((a) => {
@@ -640,7 +706,7 @@ document.addEventListener("DOMContentLoaded", () => {
             groups.get(key).push(a);
         });
 
-        const today = toDateKey(new Date());
+        const today = todayKey();
         const tomorrowDate = new Date();
         tomorrowDate.setDate(tomorrowDate.getDate() + 1);
         const tomorrow = toDateKey(tomorrowDate);
@@ -654,52 +720,392 @@ document.addEventListener("DOMContentLoaded", () => {
             return `
                 <section class="day-group">
                     <div class="day-heading">
-                        <h3>${label}</h3>
+                        <h3>${escapeHtml(label)}${closures[key] ? ` <span class="closed-tag">Clinic closed: ${escapeHtml(closures[key])}</span>` : ""}</h3>
                         <span>${items.length} appointment${items.length === 1 ? "" : "s"}</span>
                     </div>
-                    <div class="appointment-list">${items.map(card).join("")}</div>
+                    <div class="appointment-list">${items.map((a) => card(a, clash)).join("")}</div>
                 </section>
             `;
         }).join("");
     }
 
-    function render() {
+
+    /* =========================================
+       PATIENTS + BOOKING HISTORY
+    ========================================= */
+
+    function patientSummaries() {
+
+        const map = {};
+
+        Object.entries(profiles).forEach(([uid, p]) => {
+            map[uid] = {
+                uid,
+                name: p.fullName || p.name || p.email || "Unnamed",
+                id: p.studentId || p.employeeId || "",
+                role: p.role,
+                email: p.email || "",
+                appts: []
+            };
+        });
+
+        all.forEach((a) => {
+            if (!a.uid) return;
+            if (!map[a.uid]) {
+                map[a.uid] = { uid: a.uid, name: patientName(a), id: patientId(a), role: patientRole(a), email: patientEmail(a), appts: [] };
+            }
+            map[a.uid].appts.push(a);
+        });
+
+        return Object.values(map).map((p) => {
+            const appts = p.appts;
+            return {
+                ...p,
+                total: appts.length,
+                upcoming: appts.filter((a) => isActive(a) && startOf(a) > new Date()).length,
+                completed: appts.filter((a) => statusOf(a) === "completed").length,
+                noShows: appts.filter((a) => statusOf(a) === "missed" || a.cancelReason === "no-confirmation").length,
+                last: appts.reduce((max, a) => Math.max(max, Number(a.createdAt) || startOf(a).getTime()), 0)
+            };
+        });
+    }
+
+    function renderPatients() {
+
         if (!loaded) return;
-        renderStats();
-        renderWeeklySchedule();
-        renderList();
-        renderStaff();
+
+        const term = $("patientSearch").value.trim().toLowerCase();
+        const sort = $("patientSort").value;
+
+        const list = patientSummaries()
+            .filter((p) => !term || `${p.name} ${p.id} ${p.email}`.toLowerCase().includes(term))
+            .sort((a, b) =>
+                sort === "name" ? a.name.localeCompare(b.name)
+                : sort === "visits" ? b.total - a.total
+                : sort === "noshows" ? b.noShows - a.noShows || b.total - a.total
+                : b.last - a.last || a.name.localeCompare(b.name));
+
+        $("patientCount").textContent = `${list.length} patient${list.length === 1 ? "" : "s"} · open one to see their full booking history`;
+
+        if (list.length === 0) {
+            $("patientList").innerHTML = '<div class="empty-state"><h4>No patients found</h4><p>Try another name or ID.</p></div>';
+            return;
+        }
+
+        $("patientList").innerHTML = `
+            <div class="patient-table">
+                ${list.slice(0, 300).map((p) => `
+                    <button type="button" class="patient-row" data-patient="${escapeHtml(p.uid)}">
+                        <span class="patient-main">
+                            <strong>${escapeHtml(p.name)}</strong>
+                            <small>
+                                <span class="type-chip ${escapeHtml(p.role || "student")}">${escapeHtml(p.role || "student")}</span>
+                                ${escapeHtml([p.id, p.email].filter(Boolean).join(" · "))}
+                            </small>
+                        </span>
+                        <span class="patient-stats">
+                            ${counted(p.total, "booking")}
+                            <span><strong>${p.upcoming}</strong> upcoming</span>
+                            <span><strong>${p.completed}</strong> completed</span>
+                            ${counted(p.noShows, "no-show", p.noShows ? "warn" : "")}
+                        </span>
+                    </button>`).join("")}
+            </div>`;
+    }
+
+    $("patientSearch").addEventListener("input", renderPatients);
+    $("patientSort").addEventListener("change", renderPatients);
+
+    async function openPatient(uid) {
+
+        const p = profiles[uid] || {};
+        const visits = all.filter((a) => a.uid === uid).sort((x, y) => startOf(y) - startOf(x));
+        const sample = visits[0] || { uid };
+
+        const name = p.fullName || p.name || patientName(sample);
+        const role = p.role || patientRole(sample);
+
+        $("patientTitle").textContent = name;
+        openModal("patientModal");
+
+        const info = [
+            [role === "employee" ? "Employee ID" : "Student ID", p.studentId || p.employeeId || patientId(sample)],
+            [role === "employee" ? "Department" : "Program", role === "employee" ? p.department : [p.program, p.yearLevel].filter(Boolean).join(" · ")],
+            ["Email", p.email || patientEmail(sample)],
+            ["Phone", p.phone || patientPhone(sample)],
+            ["Emergency contact", [p.emergencyName, p.relationship, p.emergencyPhone].filter(Boolean).join(" · ")]
+        ];
+
+        const count = (fn) => visits.filter(fn).length;
+
+        const render = (photo) => {
+            $("patientBody").innerHTML = `
+                <div class="record-head">
+                    <span class="person-avatar big">${avatarInner(photo, name)}</span>
+                    <div>
+                        <strong>${escapeHtml(name)}</strong>
+                        <span>${role === "employee" ? "Employee" : "Student"}</span>
+                    </div>
+                </div>
+
+                <div class="record-grid">
+                    ${info.map(([label, value]) => `
+                        <div class="record-item">
+                            <span>${escapeHtml(label)}</span>
+                            <strong>${escapeHtml(value || "Not provided")}</strong>
+                        </div>`).join("")}
+                </div>
+
+                <div class="record-stats">
+                    ${counted(visits.length, "booking")}
+                    <span><strong>${count((a) => statusOf(a) === "completed")}</strong> completed</span>
+                    ${counted(count((a) => statusOf(a) === "missed"), "no-show", count((a) => statusOf(a) === "missed") ? "warn" : "")}
+                    <span class="${count((a) => a.cancelReason === "no-confirmation") ? "warn" : ""}"><strong>${count((a) => a.cancelReason === "no-confirmation")}</strong> unconfirmed</span>
+                    <span><strong>${count((a) => statusOf(a) === "cancelled" && a.cancelledBy === "patient")}</strong> cancelled by patient</span>
+                </div>
+
+                <h4 class="record-heading">Booking history</h4>
+                <div class="visit-list">
+                    ${visits.length === 0 ? '<p class="muted-text">No bookings yet.</p>' : visits.map((v) => `
+                        <div class="visit">
+                            <div class="visit-top">
+                                <strong>${v.date ? escapeHtml(formatDateShort(v.date)) : "--"} · ${v.time ? formatTime(v.time) : ""}</strong>
+                                ${badge(v)}
+                            </div>
+                            <p>${escapeHtml(reasonOf(v))}</p>
+                            ${v.instructions ? `<p class="visit-reason">Instructions: ${escapeHtml(v.instructions)}</p>` : ""}
+                            ${v.declineReason ? `<p class="visit-reason">Declined: ${escapeHtml(v.declineReason)}</p>` : ""}
+                            ${v.clinicNote ? `<p class="visit-reason">Clinic note: ${escapeHtml(v.clinicNote)}</p>` : ""}
+                            ${v.history ? `<details class="appt-history"><summary>Timeline</summary>${historyTimelineHtml(v)}</details>` : ""}
+                        </div>`).join("")}
+                </div>
+            `;
+        };
+
+        render(null);
+        const photo = await loadAvatar(uid);
+        if (photo && $("patientModal").classList.contains("show")) render(photo);
     }
 
 
     /* =========================================
-       FILTER & VIEW SWITCHER CONTROLS
+       ACTION HANDLERS
     ========================================= */
 
-    const VIEWS = {
-        weekly: { button: "viewWeeklyScheduleBtn", section: "weeklyScheduleSection" },
-        list: { button: "viewListViewBtn", section: "listViewSection" },
-        staff: { button: "viewStaffBtn", section: "staffSection" }
-    };
+    const INSTRUCTION_CHIPS = [
+        "Please arrive 10 minutes early and bring your school ID.",
+        "Please fast for 8 hours before your visit (water is okay).",
+        "Bring any previous lab results, X-rays or prescriptions.",
+        "Write down the medicines you're currently taking.",
+        "Bring the medical clearance form from your department.",
+        "Bring your vaccination card.",
+        "Wear loose, comfortable clothing."
+    ];
+
+    const detailText = (a) =>
+        `<strong>${escapeHtml(patientName(a))}</strong> · ${escapeHtml(reasonOf(a))}<br>` +
+        `${a.date ? escapeHtml(formatDateLong(a.date)) : ""}${a.time ? `, ${escapeHtml(formatRange(a.time))}` : ""}`;
+
+    function openApprove(a, onlyInstructions) {
+
+        modalAppt = a;
+        instructionsOnly = onlyInstructions;
+
+        $("approveLabel").textContent = onlyInstructions ? "PRE-APPOINTMENT INSTRUCTIONS" : "APPROVE REQUEST";
+        $("approveTitle").textContent = onlyInstructions ? "Instructions for the patient" : "Approve this appointment?";
+        $("approveConfirm").textContent = onlyInstructions ? "Save and notify patient" : "Approve and notify patient";
+        $("approveDetail").innerHTML = detailText(a) +
+            (closures[a.date] ? `<span class="warn">The clinic is marked closed that day (${escapeHtml(closures[a.date])}).</span>` : "");
+
+        $("instructionChips").innerHTML = INSTRUCTION_CHIPS.map((text) =>
+            `<button type="button" class="chip" data-chip="${escapeHtml(text)}">+ ${escapeHtml(text)}</button>`).join("");
+
+        $("instructionsInput").value = a.instructions || "";
+
+        openModal("approveModal");
+        $("instructionsInput").focus();
+    }
+
+    $("instructionChips").addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-chip]");
+        if (!chip) return;
+
+        const box = $("instructionsInput");
+        const text = chip.dataset.chip;
+
+        if (!box.value.includes(text)) box.value = box.value.trim() ? `${box.value.trim()}\n${text}` : text;
+        box.focus();
+    });
+
+    async function runAction(button, work, success) {
+        if (busy) return;
+        busy = true;
+        if (button) button.disabled = true;
+
+        try {
+            await work();
+            toast(success, "success");
+            closeModals();
+        } catch (error) {
+            console.error("Action failed:", error);
+            toast("That change couldn't be saved. Please try again.", "error");
+        } finally {
+            busy = false;
+            if (button) button.disabled = false;
+        }
+    }
+
+    $("approveConfirm").addEventListener("click", () => {
+        const a = modalAppt;
+        if (!a) return;
+
+        runAction($("approveConfirm"),
+            () => instructionsOnly
+                ? updateInstructions(a, actor(), $("instructionsInput").value)
+                : approveAppointment(a, actor(), { instructions: $("instructionsInput").value }),
+            instructionsOnly ? "Instructions saved and sent to the patient." : `Approved. ${patientName(a)} has been notified.`);
+    });
+
+    $("declineConfirm").addEventListener("click", () => {
+        const a = modalAppt;
+        if (!a) return;
+
+        runAction($("declineConfirm"),
+            () => declineAppointment(a, actor(), { reason: $("declineReason").value }),
+            "Request declined. The patient was notified.");
+    });
+
+    $("cancelConfirm").addEventListener("click", () => {
+        const a = modalAppt;
+        if (!a) return;
+
+        runAction($("cancelConfirm"),
+            () => cancelAppointment(a, actor(), { note: $("cancelNote").value }),
+            "Appointment cancelled. The slot is open again.");
+    });
+
+    async function handleAppointmentClick(event) {
+
+        if (event.target.closest("[data-jump-week]")) {
+            currentWeekMonday = getMonday(new Date());
+            Object.assign(weekFilters, { status: "all", reason: "all", search: "" });
+            $("weekStatusFilter").value = "all";
+            $("weekReasonFilter").value = "all";
+            $("weekSearchInput").value = "";
+            renderWeeklySchedule();
+            return;
+        }
+
+        const nameBtn = event.target.closest("[data-patient]");
+        if (nameBtn) {
+            openPatient(nameBtn.dataset.patient);
+            return;
+        }
+
+        const button = event.target.closest("[data-action]");
+        if (!button || busy) return;
+
+        const a = all.find((item) => item.id === button.dataset.id);
+        if (!a) return;
+
+        modalAppt = a;
+
+        switch (button.dataset.action) {
+            case "approve":
+                openApprove(a, false);
+                break;
+            case "instructions":
+                openApprove(a, true);
+                break;
+            case "decline":
+                $("declineDetail").innerHTML = detailText(a);
+                $("declineReason").value = "";
+                openModal("declineModal");
+                $("declineReason").focus();
+                break;
+            case "cancel":
+                $("cancelDetail").innerHTML = detailText(a);
+                $("cancelNote").value = "";
+                openModal("cancelModal");
+                $("cancelNote").focus();
+                break;
+            case "complete":
+                runAction(button, () => completeAppointment(a, actor()), "Marked as completed.");
+                break;
+            case "missed":
+                if (!confirm(`Mark ${patientName(a)} as a no-show?`)) return;
+                runAction(button, () => markMissed(a, actor()), "Marked as a no-show.");
+                break;
+        }
+    }
+
+    ["appointmentList", "weeklyContentArea", "patientList"].forEach((id) => {
+        $(id).addEventListener("click", handleAppointmentClick);
+    });
+
+
+    /* =========================================
+       MODALS
+    ========================================= */
+
+    function openModal(id) {
+        $(id).classList.add("show");
+    }
+
+    function closeModals() {
+        document.querySelectorAll(".modal.show").forEach((m) => m.classList.remove("show"));
+        modalAppt = null;
+        editingStaffId = null;
+    }
+
+    document.querySelectorAll(".modal").forEach((modal) => {
+        modal.addEventListener("click", (event) => {
+            if (event.target === modal || event.target.closest("[data-close]")) closeModals();
+        });
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeModals();
+    });
+
+
+    /* =========================================
+       VIEWS + CONTROLS
+    ========================================= */
 
     function showView(name) {
-        currentViewMode = name;
 
-        Object.entries(VIEWS).forEach(([key, view]) => {
-            $(view.button).classList.toggle("active", key === name);
-            $(view.button).setAttribute("aria-selected", String(key === name));
-            $(view.section).hidden = key !== name;
+        currentView = name;
+
+        document.querySelectorAll("[data-view]").forEach((button) => {
+            const on = button.dataset.view === name;
+            button.classList.toggle("active", on);
+            button.setAttribute("aria-selected", String(on));
         });
 
-        $("exportBtn").hidden = name === "staff";
+        ["weekly", "list", "patients", "settings"].forEach((view) => {
+            $(`view-${view}`).hidden = view !== name;
+        });
+
+        if (name !== "list") markStat("");
+
+        $("exportBtn").hidden = !["weekly", "list"].includes(name);
         render();
     }
 
-    Object.entries(VIEWS).forEach(([name, view]) => {
-        $(view.button).addEventListener("click", () => showView(name));
+    document.querySelectorAll("[data-view]").forEach((button) => {
+        button.addEventListener("click", () => showView(button.dataset.view));
     });
 
-    // Week Navigation
+    // "My Account" in the header opens Settings
+    ["deskProfileBtn", "profileBtn"].forEach((id) => {
+        $(id)?.addEventListener("click", (event) => {
+            event.preventDefault();
+            showView("settings");
+            $("myAccount").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+
     $("prevWeekBtn").addEventListener("click", () => {
         currentWeekMonday.setDate(currentWeekMonday.getDate() - 7);
         renderWeeklySchedule();
@@ -715,7 +1121,6 @@ document.addEventListener("DOMContentLoaded", () => {
         renderWeeklySchedule();
     });
 
-    // Weekly Display Mode (Table vs Grid)
     $("displayTableBtn").addEventListener("click", () => {
         weeklyDisplayMode = "table";
         $("displayTableBtn").classList.add("active");
@@ -730,318 +1135,325 @@ document.addEventListener("DOMContentLoaded", () => {
         renderWeeklySchedule();
     });
 
-    // Week Quick Filters
     $("weekStatusFilter").addEventListener("change", (e) => { weekFilters.status = e.target.value; renderWeeklySchedule(); });
-    $("weekServiceFilter").addEventListener("change", (e) => { weekFilters.service = e.target.value; renderWeeklySchedule(); });
-    $("weekProviderFilter").addEventListener("change", (e) => { weekFilters.provider = e.target.value; renderWeeklySchedule(); });
+    $("weekReasonFilter").addEventListener("change", (e) => { weekFilters.reason = e.target.value; renderWeeklySchedule(); });
     $("weekSearchInput").addEventListener("input", (e) => { weekFilters.search = e.target.value; renderWeeklySchedule(); });
 
-    // List view filters
     $("rangeFilters").addEventListener("click", (event) => {
-
         const button = event.target.closest(".filter");
         if (!button) return;
-
         filters.range = button.dataset.range;
-
-        document.querySelectorAll("#rangeFilters .filter").forEach((b) => {
-            b.classList.toggle("active", b === button);
-        });
-
+        markStat("");
+        syncListControls();
         renderList();
     });
 
-    $("statusFilter").addEventListener("change", (e) => { filters.status = e.target.value; renderList(); });
-    $("serviceFilter").addEventListener("change", (e) => { filters.service = e.target.value; renderList(); });
-    $("roleFilter").addEventListener("change", (e) => { filters.role = e.target.value; renderList(); });
-    $("providerFilter").addEventListener("change", (e) => { filters.provider = e.target.value; renderList(); });
-    $("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList();
-                                                      
-    });
+    const listFilter = (key) => (e) => { filters[key] = e.target.value; markStat(""); renderList(); };
 
-    
-document.querySelectorAll(".stat-card[data-filter]")
-    .forEach(card => {
-        function selectCard() {
-            const filter = card.dataset.filter;
+    $("statusFilter").addEventListener("change", listFilter("status"));
+    $("reasonFilter").addEventListener("change", listFilter("reason"));
+    $("roleFilter").addEventListener("change", listFilter("role"));
+    $("searchInput").addEventListener("input", listFilter("search"));
 
-            document.querySelectorAll(
-                ".stat-card[data-filter]"
-            ).forEach(item => {
-                item.classList.toggle(
-                    "active",
-                    item === card
-                );
-                item.setAttribute(
-                    "aria-pressed",
-                    String(item === card)
-                );
-            });
+    function render() {
+        if (!loaded) return;
+        renderStats();
+        if (currentView === "weekly") renderWeeklySchedule();
+        if (currentView === "list") renderList();
+        if (currentView === "patients") renderPatients();
+        if (currentView === "settings") renderStaff();
+    }
 
-            // Connect to the existing appointment filter.
-            const statusFilter =
-                document.querySelector("#statusFilter");
+    // admin.html?appt=ID (from a notification or email): show it in the list
+    let linkHandled = false;
 
-            if (statusFilter) {
-                statusFilter.value =
-                    filter === "today" ? "all" : filter;
+    function openLinkedAppointment() {
 
-                statusFilter.dispatchEvent(
-                    new Event("change", { bubbles: true })
-                );
-            }
+        if (linkHandled) return;
 
-            // Today needs an additional date filter
-            // using the appointment's scheduled date.
-        }
+        const params = new URLSearchParams(location.search);
+        const id = params.get("appt");
 
-        card.addEventListener("click", selectCard);
-
-        card.addEventListener("keydown", event => {
-            if (event.key === "Enter" ||
-                event.key === " ") {
-                event.preventDefault();
-                selectCard();
-            }
-        });
-    });
-
-
-    $("refreshBtn").addEventListener("click", async () => {
-        try {
-            await loadProfiles();
-            render();
-            toast("Patient details refreshed. Appointments update live.");
-        } catch (error) {
-            console.error("Refresh error:", error);
-            toast("Couldn't refresh patient details.", "error");
-        }
-    });
-
-
-    /* =========================================
-       ACTIONS: approve / complete / no-show / cancel
-    ========================================= */
-
-    async function handleAppointmentAction(event) {
-
-        const button = event.target.closest("[data-action]");
-        if (!button || busy) return;
-
-        const a = all.find((item) => item.id === button.dataset.id);
-        if (!a) return;
-
-        const action = button.dataset.action;
-
-        if (action === "cancel") {
-            openCancelModal(a);
+        if (params.get("view") === "settings") {
+            linkHandled = true;
+            showView("settings");
             return;
         }
 
-        if (action === "missed" && !confirm(`Mark ${patientName(a)} as a no-show?`)) return;
+        if (!id) return;
 
-        button.disabled = true;
-        busy = true;
+        const a = all.find((item) => item.id === id);
+        if (!a) return;
+
+        linkHandled = true;
+        focusAppointment(a);
+    }
+
+    function focusAppointment(a) {
+        Object.assign(filters, { range: "all", status: "all", reason: "all", role: "all", search: patientName(a) });
+        syncListControls();
+        highlightId = a.id;
+        showView("list");
+        document.getElementById(`appt-${a.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => { highlightId = null; render(); }, 6000);
+    }
+
+    window.addEventListener("bell:open", (event) => {
+        const a = all.find((item) => item.id === event.detail?.apptId);
+        if (a) focusAppointment(a);
+    });
+
+
+    /* =========================================
+       SETTINGS: BOOKING REASONS
+    ========================================= */
+
+    // First visit: save the default list so it can be edited. A transaction,
+    // so two staff opening the page at once can't both add it.
+    async function seedReasons() {
+        const data = {};
+        DEFAULT_REASONS.forEach((name, order) => {
+            data[push(ref(db, "bookingReasons")).key] = { name, active: true, order };
+        });
+        await runTransaction(ref(db, "bookingReasons"), (current) => (current ? undefined : data))
+            .catch((error) => console.warn("Couldn't save the default reasons:", error));
+    }
+
+    function renderReasonsAdmin() {
+
+        const list = allReasons(reasonsData);
+
+        $("reasonList").innerHTML = list.length === 0
+            ? '<li class="muted-text">No reasons yet. Add one above.</li>'
+            : list.map((r, i) => `
+                <li class="reason-row${r.active === false ? " off" : ""}" data-reason="${escapeHtml(r.id)}">
+                    <input type="text" value="${escapeHtml(r.name)}" maxlength="${REASON_MAX}" aria-label="Reason name" data-rename>
+                    <label class="switch-mini" title="${r.active === false ? "Hidden from patients" : "Shown to patients"}">
+                        <input type="checkbox" data-toggle ${r.active === false ? "" : "checked"}>
+                        <span>${r.active === false ? "Off" : "On"}</span>
+                    </label>
+                    <button type="button" class="icon-btn" data-move="-1" ${i === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
+                    <button type="button" class="icon-btn" data-move="1" ${i === list.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
+                    <button type="button" class="icon-btn danger" data-delete aria-label="Delete reason">×</button>
+                </li>`).join("");
+    }
+
+    $("reasonForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const name = $("reasonName").value.trim();
+        if (!name) return;
+
+        const list = allReasons(reasonsData);
+
+        if (list.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
+            toast("That reason is already on the list.", "error");
+            return;
+        }
 
         try {
-            if (action === "approve") {
-                await approveAppointment(a, actor());
-                toast("Approved. The patient was notified.", "success");
-            } else if (action === "complete") {
-                await completeAppointment(a, actor());
-                toast("Marked as completed.", "success");
-            } else if (action === "missed") {
-                await markMissed(a, actor());
-                toast("Marked as a no-show.", "success");
+            await set(push(ref(db, "bookingReasons")), {
+                name,
+                active: true,
+                order: list.length ? Math.max(...list.map((r) => Number(r.order) || 0)) + 1 : 0
+            });
+            $("reasonName").value = "";
+            toast("Reason added. Patients can choose it now.", "success");
+        } catch (error) {
+            console.error("Add reason error:", error);
+            toast("Couldn't add the reason.", "error");
+        }
+    });
+
+    $("reasonList").addEventListener("change", async (event) => {
+
+        const row = event.target.closest("[data-reason]");
+        if (!row) return;
+
+        const id = row.dataset.reason;
+
+        try {
+            if (event.target.matches("[data-toggle]")) {
+                await update(ref(db, `bookingReasons/${id}`), { active: event.target.checked });
+            }
+
+            if (event.target.matches("[data-rename]")) {
+                const name = event.target.value.trim();
+                if (!name) { renderReasonsAdmin(); return; }
+                await update(ref(db, `bookingReasons/${id}`), { name });
+                toast("Reason renamed. Past appointments keep the old wording.", "success");
             }
         } catch (error) {
-            console.error("Update error:", error);
-            toast("That change couldn't be saved. Please try again.", "error");
-            button.disabled = false;
-        } finally {
-            busy = false;
-        }
-    }
-
-    $("appointmentList").addEventListener("click", handleAppointmentAction);
-    $("weeklyContentArea").addEventListener("click", handleAppointmentAction);
-
-
-    /* =========================================
-       CANCEL MODAL
-    ========================================= */
-
-    function openCancelModal(a) {
-
-        pendingCancel = a;
-
-        $("cancelDetail").innerHTML =
-            `<strong>${escapeHtml(patientName(a))}</strong><br>` +
-            `${escapeHtml(serviceName(a))} · ${a.date ? formatDateLong(a.date) : ""} at ${a.time ? formatTime(a.time) : ""}` +
-            ` · ${escapeHtml(providerName(a))}`;
-
-        $("cancelNote").value = "";
-
-        $("cancelModal").classList.add("show");
-        $("cancelNote").focus();
-    }
-
-    function closeCancelModal() {
-        $("cancelModal").classList.remove("show");
-        pendingCancel = null;
-    }
-
-    $("cancelModalClose").addEventListener("click", closeCancelModal);
-    $("cancelKeep").addEventListener("click", closeCancelModal);
-
-    $("cancelModal").addEventListener("click", (event) => {
-        if (event.target === $("cancelModal")) closeCancelModal();
-    });
-
-    document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-            closeCancelModal();
-            closeStaffModal();
+            console.error("Reason update error:", error);
+            toast("Couldn't save that change.", "error");
+            renderReasonsAdmin();
         }
     });
 
-    $("cancelConfirm").addEventListener("click", async () => {
+    $("reasonList").addEventListener("click", async (event) => {
 
-        const a = pendingCancel;
+        const row = event.target.closest("[data-reason]");
+        if (!row) return;
 
-        if (!a || busy) return;
-
-        busy = true;
-        $("cancelConfirm").disabled = true;
+        const list = allReasons(reasonsData);
+        const index = list.findIndex((r) => r.id === row.dataset.reason);
+        if (index < 0) return;
 
         try {
-            await cancelAppointment(a, actor(), { note: $("cancelNote").value });
-            closeCancelModal();
-            toast("Appointment cancelled. The time is open again.", "success");
+            const move = event.target.closest("[data-move]");
+
+            if (move) {
+                const other = list[index + Number(move.dataset.move)];
+                if (!other) return;
+
+                // Renumber everything so equal orders can't get stuck
+                const order = list.map((r) => r.id);
+                [order[index], order[index + Number(move.dataset.move)]] = [order[index + Number(move.dataset.move)], order[index]];
+
+                const changes = {};
+                order.forEach((id, i) => { changes[`bookingReasons/${id}/order`] = i; });
+                await update(ref(db), changes);
+                return;
+            }
+
+            if (event.target.closest("[data-delete]")) {
+                if (!confirm(`Delete "${list[index].name}"? Past appointments keep it; patients just won't see it any more.`)) return;
+                await set(ref(db, `bookingReasons/${list[index].id}`), null);
+            }
         } catch (error) {
-            console.error("Cancel error:", error);
-            toast("That change couldn't be saved. Please try again.", "error");
-        } finally {
-            busy = false;
-            $("cancelConfirm").disabled = false;
+            console.error("Reason change error:", error);
+            toast("Couldn't save that change.", "error");
+        }
+    });
+
+    $("reasonList").addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && event.target.matches("[data-rename]")) event.target.blur();
+    });
+
+
+    /* =========================================
+       SETTINGS: CLINIC CLOSURES
+    ========================================= */
+
+    $("hoursText").textContent = `The clinic takes appointments ${HOURS_TEXT}. Close a date (holiday, school event) and patients can't book it.`;
+    $("closureDate").min = todayKey();
+
+    function renderClosures() {
+
+        const today = todayKey();
+        const entries = Object.entries(closures)
+            .filter(([date]) => date >= today)
+            .sort(([a], [b]) => a.localeCompare(b));
+
+        $("closureList").innerHTML = entries.length
+            ? entries.map(([date, note]) => `
+                <li class="closure-row">
+                    <span><strong>${escapeHtml(formatDateLong(date))}</strong>${note ? ` · ${escapeHtml(note)}` : ""}</span>
+                    <button type="button" class="link-btn danger" data-open-date="${escapeHtml(date)}">Reopen</button>
+                </li>`).join("")
+            : '<li class="muted-text">No upcoming closures.</li>';
+
+        if (loaded) render();
+    }
+
+    $("closureForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const date = $("closureDate").value;
+
+        if (!date || date < todayKey()) {
+            toast("Pick a date from today onward.", "error");
+            return;
+        }
+
+        try {
+            await set(ref(db, `clinicClosures/${date}`), $("closureNote").value.trim() || "Clinic closed");
+
+            const affected = all.filter((a) => a.date === date && isActive(a));
+            $("closureWarning").hidden = affected.length === 0;
+            $("closureWarning").textContent = affected.length
+                ? `${affected.length} appointment${affected.length === 1 ? " is" : "s are"} still booked on ${formatDateLong(date)}. Cancel ${affected.length === 1 ? "it" : "them"} from All Appointments so the patient${affected.length === 1 ? "" : "s"} can rebook.`
+                : "";
+
+            $("closureDate").value = "";
+            $("closureNote").value = "";
+            toast("Date closed. Patients can't book it now.", "success");
+        } catch (error) {
+            console.error("Closure error:", error);
+            toast("Couldn't close that date.", "error");
+        }
+    });
+
+    $("closureList").addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-open-date]");
+        if (!button) return;
+
+        try {
+            await set(ref(db, `clinicClosures/${button.dataset.openDate}`), null);
+            $("closureWarning").hidden = true;
+        } catch (error) {
+            console.error("Reopen error:", error);
+            toast("Couldn't reopen that date.", "error");
         }
     });
 
 
     /* =========================================
-       CLINIC STAFF
-       New staff accounts are created on a separate, temporary Firebase
-       app so the admin stays signed in. The new staff member then gets
-       a "set your password" email: the admin never knows the password.
+       SETTINGS: CLINIC STAFF ACCOUNTS
+       New accounts are created on a separate, temporary Firebase app so
+       the signed-in staff member stays signed in. The new person then
+       gets a "set your password" email: nobody else knows the password.
     ========================================= */
-
-    function staffWorkload(id) {
-        const today = toDateKey(new Date());
-        const upcoming = all.filter((a) => a.staffId === id && (a.date || "") >= today);
-        return {
-            pending: upcoming.filter((a) => statusOf(a) === "pending").length,
-            approved: upcoming.filter((a) => statusOf(a) === "approved").length,
-            completed: all.filter((a) => a.staffId === id && statusOf(a) === "completed").length
-        };
-    }
 
     function renderStaff() {
 
-        const list = Object.entries(staff)
-            .map(([id, s]) => ({ id, ...s }))
-            .sort((a, b) => (a.active === false) - (b.active === false) || staffDisplayName(a).localeCompare(staffDisplayName(b)));
+        if (!adminUser) return;
 
-        if (list.length === 0) {
-            $("staffList").innerHTML = `
-                <div class="empty-state">
-                    <h4>No clinic staff yet</h4>
-                    <p>Patients can't book until at least one doctor, nurse or dentist is added.</p>
-                    <button type="button" class="btn-primary" data-add-staff>Add the first staff member</button>
-                </div>`;
-            return;
-        }
+        const list = Object.entries(admins)
+            .filter(([uid]) => uid !== ADMIN_UID)
+            .map(([uid, s]) => ({ uid, ...s }))
+            .sort((a, b) => (a.active === false) - (b.active === false) || String(a.name).localeCompare(String(b.name)));
 
-        $("staffList").innerHTML = `<div class="staff-grid">${list.map((s) => {
-            const load = staffWorkload(s.id);
-            const days = [0, 1, 2, 3, 4, 5, 6].filter((d) => rangesFor(s, d).length);
-            const services = Object.keys(s.services || {}).filter((k) => s.services[k]);
+        const main = admins[ADMIN_UID] || {};
 
-            return `
-                <article class="staff-card${s.active === false ? " inactive" : ""}">
-                    <div class="staff-card-top">
-                        <span class="person-avatar ${escapeHtml(s.type)}">${avatarInner(staffPhotos[s.id], s.name)}</span>
-                        <div>
-                            <h4>${escapeHtml(staffDisplayName(s))}</h4>
-                            <span class="type-chip staff-${escapeHtml(s.type)}">${escapeHtml(staffTypeLabel(s.type))}</span>
-                            ${s.active === false ? '<span class="type-chip off">Inactive</span>' : ""}
-                        </div>
-                    </div>
+        const row = (s, isMain) => `
+            <div class="staff-row${s.active === false ? " inactive" : ""}">
+                <span class="person-avatar">${avatarInner(null, s.name || s.email)}</span>
+                <span class="staff-main">
+                    <strong>${escapeHtml(s.name || s.email || "Clinic staff")}${s.uid === adminUser.uid ? " (you)" : ""}</strong>
+                    <small>${escapeHtml([s.position || (isMain ? "Main admin" : "Clinic staff"), s.email].filter(Boolean).join(" · "))}</small>
+                </span>
+                ${isMain ? '<span class="type-chip main">Main admin</span>' : s.active === false ? '<span class="type-chip off">No access</span>' : ""}
+                ${isMain ? "" : `
+                    <span class="appt-actions">
+                        <button type="button" class="link-btn" data-edit-staff="${escapeHtml(s.uid)}">Edit</button>
+                        <button type="button" class="link-btn" data-reset-staff="${escapeHtml(s.uid)}">Password email</button>
+                        ${s.uid === adminUser.uid ? "" : `<button type="button" class="link-btn ${s.active === false ? "success" : "danger"}" data-toggle-staff="${escapeHtml(s.uid)}">${s.active === false ? "Give access" : "Remove access"}</button>`}
+                    </span>`}
+            </div>`;
 
-                    <p class="staff-line"><a href="mailto:${escapeHtml(s.email)}">${escapeHtml(s.email || "")}</a>${s.phone ? ` · ${escapeHtml(s.phone)}` : ""}</p>
-                    ${s.specialty ? `<p class="staff-line">${escapeHtml(s.specialty)}</p>` : ""}
-                    <p class="staff-line">${services.map((k) => escapeHtml(SERVICES[k]?.name || k)).join(" · ") || "No services"}</p>
-                    <p class="staff-line muted">${days.length ? `Works ${escapeHtml(describeDays(days))}` : "No weekly hours set"}</p>
-
-                    <div class="staff-load">
-                        <span><strong>${load.pending}</strong> pending</span>
-                        <span><strong>${load.approved}</strong> upcoming</span>
-                        <span><strong>${load.completed}</strong> completed</span>
-                    </div>
-
-                    <div class="appt-actions">
-                        <button type="button" class="link-btn" data-edit-staff="${escapeHtml(s.id)}">Edit</button>
-                        <button type="button" class="link-btn" data-reset-staff="${escapeHtml(s.id)}">Send password email</button>
-                        <button type="button" class="link-btn ${s.active === false ? "success" : "danger"}" data-toggle-staff="${escapeHtml(s.id)}">${s.active === false ? "Reactivate" : "Deactivate"}</button>
-                    </div>
-                </article>`;
-        }).join("")}</div>`;
+        $("staffList").innerHTML =
+            row({ uid: ADMIN_UID, name: main.name || (adminUser.uid === ADMIN_UID ? myName() : "Main admin"), email: main.email || "", position: main.position }, true) +
+            (list.length ? list.map((s) => row(s, false)).join("") : '<p class="muted-text staff-empty">No other clinic staff yet. Add each nurse, doctor or staff member so they can sign in with their own account.</p>');
     }
 
-    function renderServiceChecks(selected) {
-        $("staffServices").innerHTML = Object.entries(SERVICES).map(([id, svc]) => `
-            <label class="check-row">
-                <input type="checkbox" value="${id}" ${selected[id] ? "checked" : ""}>
-                <span>${escapeHtml(svc.name)}</span>
-            </label>`).join("");
-    }
+    function openStaffModal(uid = null) {
 
-    function openStaffModal(id = null) {
+        editingStaffId = uid;
+        const s = uid ? admins[uid] : null;
 
-        editingStaffId = id;
-        const s = id ? staff[id] : null;
-
-        $("staffModalTitle").textContent = s ? "Edit staff member" : "Add a doctor, nurse or dentist";
+        $("staffModalTitle").textContent = s ? "Edit clinic staff" : "Add clinic staff";
         $("staffSave").textContent = s ? "Save changes" : "Create account";
         $("staffNameInput").value = s?.name || "";
         $("staffEmailInput").value = s?.email || "";
         $("staffEmailInput").readOnly = Boolean(s);
-        $("staffTypeInput").value = s?.type || "doctor";
+        $("staffPositionInput").value = s?.position || "";
         $("staffCreateNote").hidden = Boolean(s);
         $("staffError").textContent = "";
 
-        const defaults = Object.fromEntries(STAFF_TYPES[$("staffTypeInput").value].services.map((k) => [k, true]));
-        renderServiceChecks(s?.services || defaults);
-
-        $("staffModal").classList.add("show");
+        openModal("staffModal");
         $("staffNameInput").focus();
     }
-
-    function closeStaffModal() {
-        $("staffModal").classList.remove("show");
-        editingStaffId = null;
-    }
-
-    // New staff: pick the usual services for the chosen type
-    $("staffTypeInput").addEventListener("change", () => {
-        if (editingStaffId) return;
-        renderServiceChecks(Object.fromEntries(STAFF_TYPES[$("staffTypeInput").value].services.map((k) => [k, true])));
-    });
-
-    $("staffModalClose").addEventListener("click", closeStaffModal);
-    $("staffCancel").addEventListener("click", closeStaffModal);
-    $("staffModal").addEventListener("click", (event) => {
-        if (event.target === $("staffModal")) closeStaffModal();
-    });
 
     $("addStaffBtn").addEventListener("click", () => openStaffModal());
 
@@ -1050,7 +1462,7 @@ document.querySelectorAll(".stat-card[data-filter]")
         return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 32) + "A!9";
     }
 
-    async function createStaffLogin(email) {
+    async function createLogin(email) {
 
         const temp = initializeApp(app.options, `staff-create-${Date.now()}`);
 
@@ -1066,37 +1478,30 @@ document.querySelectorAll(".stat-card[data-filter]")
 
     $("staffSave").addEventListener("click", async () => {
 
-        const name = $("staffNameInput").value.trim().replace(/^Dr\.?\s+/i, "");
+        const name = $("staffNameInput").value.trim();
         const email = $("staffEmailInput").value.trim().toLowerCase();
-        const type = $("staffTypeInput").value;
-        const services = Object.fromEntries(
-            [...$("staffServices").querySelectorAll("input:checked")].map((i) => [i.value, true]));
+        const position = $("staffPositionInput").value.trim();
+        const uid = editingStaffId;
 
         $("staffError").textContent = "";
 
-        if (!name) { $("staffError").textContent = "Enter the staff member's name."; return; }
+        if (name.length < 2) { $("staffError").textContent = "Enter the person's name."; return; }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $("staffError").textContent = "Enter a valid email address."; return; }
-        if (Object.keys(services).length === 0) { $("staffError").textContent = "Choose at least one service."; return; }
 
         $("staffSave").disabled = true;
 
         try {
 
-            if (editingStaffId) {
-
-                await update(ref(db, `staff/${editingStaffId}`), { name, type, services });
+            if (uid) {
+                await update(ref(db, `admins/${uid}`), { name, position: position || null });
                 toast("Staff details saved.", "success");
-
             } else {
+                const newUid = await createLogin(email);
 
-                const uid = await createStaffLogin(email);
-
-                await set(ref(db, `staff/${uid}`), {
+                await set(ref(db, `admins/${newUid}`), {
                     name,
                     email,
-                    type,
-                    services,
-                    availability: DEFAULT_AVAILABILITY[type],
+                    position: position || null,
                     active: true,
                     createdAt: serverTimestamp(),
                     createdBy: adminUser.uid
@@ -1104,17 +1509,17 @@ document.querySelectorAll(".stat-card[data-filter]")
 
                 await sendPasswordResetEmail(auth, email);
 
-                toast(`${staffDisplayName({ name, type })} was added. They'll get an email to set their password.`, "success");
+                toast(`${name} was added. They'll get an email to set their password, then log in as "Admin".`, "success");
             }
 
-            closeStaffModal();
+            closeModals();
 
         } catch (error) {
 
             console.error("Staff save error:", error);
 
             $("staffError").textContent =
-                error.code === "auth/email-already-in-use" ? "An account already uses this email. Use the person's work email that isn't registered yet."
+                error.code === "auth/email-already-in-use" ? "An account already uses this email (maybe a student/employee account). Use a different email."
                 : error.code === "auth/invalid-email" ? "That email address isn't valid."
                 : error.code === "auth/operation-not-allowed" ? "Email/password sign-in is turned off in Firebase Authentication."
                 : "Couldn't save. Check your connection and the database rules.";
@@ -1126,11 +1531,6 @@ document.querySelectorAll(".stat-card[data-filter]")
 
     $("staffList").addEventListener("click", async (event) => {
 
-        if (event.target.closest("[data-add-staff]")) {
-            openStaffModal();
-            return;
-        }
-
         const edit = event.target.closest("[data-edit-staff]");
         const reset = event.target.closest("[data-reset-staff]");
         const toggle = event.target.closest("[data-toggle-staff]");
@@ -1141,7 +1541,7 @@ document.querySelectorAll(".stat-card[data-filter]")
         }
 
         if (reset) {
-            const s = staff[reset.dataset.resetStaff];
+            const s = admins[reset.dataset.resetStaff];
             if (!s?.email) return;
 
             try {
@@ -1155,79 +1555,149 @@ document.querySelectorAll(".stat-card[data-filter]")
         }
 
         if (toggle) {
-            const id = toggle.dataset.toggleStaff;
-            const s = staff[id];
-            const deactivate = s.active !== false;
+            const uid = toggle.dataset.toggleStaff;
+            const s = admins[uid];
+            const remove = s.active !== false;
 
-            const upcoming = all.filter((a) => a.staffId === id && ["pending", "approved"].includes(statusOf(a)) && whenOf(a) > new Date()).length;
-
-            if (deactivate && !confirm(
-                `Deactivate ${staffDisplayName(s)}? They won't be able to log in to the staff dashboard or receive new bookings.` +
-                (upcoming ? `\n\nThey still have ${upcoming} upcoming appointment${upcoming === 1 ? "" : "s"}. Cancel or reassign those first.` : ""))) return;
+            if (remove && !confirm(`Remove ${s.name || s.email}'s access? They won't be able to open the admin page any more.`)) return;
 
             try {
-                await update(ref(db, `staff/${id}`), { active: !deactivate });
-                toast(deactivate ? "Staff member deactivated." : "Staff member reactivated.", "success");
+                await update(ref(db, `admins/${uid}`), { active: !remove });
+                toast(remove ? "Access removed." : "Access given back.", "success");
             } catch (error) {
                 console.error("Toggle staff error:", error);
-                toast("Couldn't update the staff member.", "error");
+                toast("Couldn't update the account.", "error");
             }
         }
     });
 
 
     /* =========================================
-       EXPORT CSV (whatever the filters currently show)
+       SETTINGS: MY ACCOUNT
+    ========================================= */
+
+    function renderMyAccount() {
+        $("myAvatar").innerHTML = avatarInner(myPhoto, myName());
+        $("myPhotoBtn").textContent = myPhoto ? "Change photo" : "Add a photo";
+        $("myPhotoRemove").hidden = !myPhoto;
+        $("myEmail").textContent = `Login email: ${adminUser.email || ""}`;
+    }
+
+    $("mySaveBtn").addEventListener("click", async () => {
+
+        const name = $("myName").value.trim();
+
+        if (name.length < 2) {
+            toast("Please enter your name.", "error");
+            return;
+        }
+
+        $("mySaveBtn").disabled = true;
+
+        try {
+            const changes = { name, position: $("myPosition").value.trim() || null, email: adminUser.email || null };
+            if (adminUser.uid === ADMIN_UID) changes.active = true;
+
+            await update(ref(db, `admins/${adminUser.uid}`), changes);
+            myRecord = { ...myRecord, ...changes };
+
+            setGreeting();
+            renderMyAccount();
+            toast("Your details are saved.", "success");
+        } catch (error) {
+            console.error("Account save error:", error);
+            toast("Couldn't save your details.", "error");
+        } finally {
+            $("mySaveBtn").disabled = false;
+        }
+    });
+
+    async function changeMyPhoto(photo) {
+        try {
+            await saveAvatar(adminUser.uid, photo);
+            myPhoto = photo;
+            renderMyAccount();
+            toast(photo ? "Photo updated." : "Photo removed.", "success");
+        } catch (error) {
+            console.error("Photo error:", error);
+            toast(photoErrorMessage(error), "error");
+        }
+    }
+
+    $("myPhotoBtn").addEventListener("click", async () => {
+        const file = await pickImage();
+        if (!file) return;
+
+        try {
+            await changeMyPhoto(await shrinkImage(file));
+        } catch (error) {
+            toast(photoErrorMessage(error), "error");
+        }
+    });
+
+    $("myPhotoRemove").addEventListener("click", () => {
+        if (confirm("Remove your profile photo?")) changeMyPhoto(null);
+    });
+
+    $("myPasswordBtn").addEventListener("click", async () => {
+        try {
+            await sendPasswordResetEmail(auth, adminUser.email);
+            toast(`Password link sent to ${adminUser.email}. Check your inbox (and spam).`, "success");
+        } catch (error) {
+            console.error("Password email error:", error);
+            toast("Couldn't send the email. Please try again later.", "error");
+        }
+    });
+
+    function setGreeting() {
+        const hour = new Date().getHours();
+        const hello = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+        $("greeting").textContent = `${hello}, ${myName().split(/\s+/)[0]}`;
+    }
+
+
+    /* =========================================
+       EXPORT CSV (whatever the current view shows)
     ========================================= */
 
     // Stops spreadsheet apps from running text that starts with = + - @ as a formula
     function csvCell(value) {
-
         let text = String(value ?? "");
-
         if (/^[=+\-@]/.test(text)) text = "'" + text;
-
         return `"${text.replace(/"/g, '""')}"`;
     }
 
     $("exportBtn").addEventListener("click", () => {
 
-        const isWeekly = currentViewMode === "weekly";
+        const isWeekly = currentView === "weekly";
         const list = isWeekly
             ? filteredWeekAppointments(getWeekDays(currentWeekMonday))
             : sortList(filtered());
 
         if (list.length === 0) {
-            toast(isWeekly
-                ? "There are no appointments to export for this week."
-                : "There is nothing to export for the current filters.", "error");
+            toast("There is nothing to export for the current view.", "error");
             return;
         }
 
-        const header = ["Date", "Day", "Time", "Service", "Provider", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Attendance", "Reason", "Instructions", "Note"];
+        const header = ["Date", "Day", "Time", "Reason", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Attendance", "Instructions", "Note", "Handled by"];
 
-        const rows = list.map((a) => {
-            const dayObj = a.date ? parseDateKey(a.date) : null;
-            const dayName = dayObj ? dayObj.toLocaleDateString("en-US", { weekday: "long" }) : "";
-            return [
-                a.date || "",
-                dayName,
-                a.time ? formatTime(a.time) : "",
-                serviceName(a),
-                providerName(a),
-                patientName(a),
-                patientRole(a),
-                patientId(a),
-                patientDetail(a),
-                patientEmail(a),
-                patientPhone(a),
-                stateLabel(a),
-                a.attendance === "confirmed" ? "Confirmed" : (statusOf(a) === "approved" ? "Not confirmed yet" : ""),
-                a.reason || "",
-                a.instructions || "",
-                a.clinicNote || a.declineReason || ""
-            ];
-        });
+        const rows = list.map((a) => [
+            a.date || "",
+            a.date ? parseDateKey(a.date).toLocaleDateString("en-US", { weekday: "long" }) : "",
+            a.time ? formatRange(a.time) : "",
+            reasonOf(a),
+            patientName(a),
+            patientRole(a),
+            patientId(a),
+            patientDetail(a),
+            patientEmail(a),
+            patientPhone(a),
+            stateLabel(a),
+            a.attendance === "confirmed" ? "Confirmed" : (statusOf(a) === "approved" ? "Not confirmed yet" : ""),
+            a.instructions || "",
+            a.clinicNote || a.declineReason || "",
+            a.handledByName || ""
+        ]);
 
         const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 
@@ -1235,13 +1705,11 @@ document.querySelectorAll(".stat-card[data-filter]")
         const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
 
-        const filename = isWeekly
-            ? `weekly-schedule-${toDateKey(currentWeekMonday)}.csv`
-            : `appointments-${toDateKey(new Date())}.csv`;
-
         const link = document.createElement("a");
         link.href = url;
-        link.download = filename;
+        link.download = isWeekly
+            ? `weekly-schedule-${toDateKey(currentWeekMonday)}.csv`
+            : `appointments-${todayKey()}.csv`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -1278,7 +1746,7 @@ document.querySelectorAll(".stat-card[data-filter]")
 
 
     /* =========================================
-       AUTHENTICATION: admin only
+       AUTHENTICATION: clinic staff only
     ========================================= */
 
     onAuthStateChanged(auth, async (user) => {
@@ -1288,21 +1756,25 @@ document.querySelectorAll(".stat-card[data-filter]")
             return;
         }
 
-        // Only the hard-coded admin account may use this page
-        if (user.uid !== ADMIN_UID) {
+        const record = user.uid === ADMIN_UID ? (await adminRecord(user.uid)) || {} : await adminRecord(user.uid);
 
+        if (user.uid !== ADMIN_UID && record?.active !== true) {
+
+            // Students / employees: back to their own appointments page
             let destination = "../student/st-appointment.html";
 
             try {
-                const [employeeSnap, staffSnap] = await Promise.all([
-                    get(ref(db, `employees/${user.uid}`)),
-                    get(ref(db, `staff/${user.uid}`)).catch(() => null)
-                ]);
-
-                if (staffSnap?.exists()) destination = "../staff/staff.html";
-                else if (employeeSnap.exists()) destination = "../employee/em-appointment.html";
+                const employeeSnap = await get(ref(db, `employees/${user.uid}`));
+                if (employeeSnap.exists()) destination = "../employee/em-appointment.html";
             } catch (error) {
                 console.warn("Could not check account type:", error);
+            }
+
+            if (record) {
+                $("accessCheck").innerHTML = `
+                    <h4>Your admin access was removed</h4>
+                    <p>Please ask the main clinic admin if you still need access.</p>`;
+                return;
             }
 
             window.location.replace(destination);
@@ -1310,18 +1782,23 @@ document.querySelectorAll(".stat-card[data-filter]")
         }
 
         adminUser = user;
-        adminName = user.displayName || user.email || "Admin";
-
-        mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")]);
+        myRecord = record || {};
 
         $("accessCheck").hidden = true;
         $("adminContent").hidden = false;
 
-        try {
-            await loadProfiles();
-        } catch (error) {
-            console.error("Failed to load profiles:", error);
-        }
+        $("myName").value = myRecord.name || user.displayName || "";
+        $("myPosition").value = myRecord.position || "";
+        setGreeting();
+        renderMyAccount();
+
+        loadAvatar(user.uid).then((photo) => {
+            myPhoto = photo;
+            renderMyAccount();
+        });
+
+        // Own notifications + the clinic's shared inbox
+        mountBell(user.uid, [$("bellSlotDesktop"), $("bellSlotMobile")], { channels: [user.uid, CLINIC_CHANNEL] });
 
         watchData();
 

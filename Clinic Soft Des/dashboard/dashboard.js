@@ -17,6 +17,7 @@ import {
 
 import { ADMIN_UID } from "../shared/config.js";
 import { mountBell } from "../shared/notify.js";
+import { isClinicAdmin } from "../shared/access.js";
 
 // ==========================================
 // ROLE -> PAGE ROUTING
@@ -91,7 +92,7 @@ function initDashboard() {
 
     function profilePage() {
         return currentRole === "admin"
-            ? ADMIN_PAGE
+            ? `${ADMIN_PAGE}?view=settings`
             : PAGES[currentRole].profile;
     }
 
@@ -102,9 +103,8 @@ function initDashboard() {
 
             card.setAttribute(
                 "href",
-                currentRole === "admin"
-                    ? ADMIN_PAGE
-                    : `${appointmentPage()}?service=${service}`
+                // Booking starts with the reason, so every card opens the same page
+                currentRole === "admin" ? ADMIN_PAGE : appointmentPage()
             );
         });
     }
@@ -130,10 +130,11 @@ function initDashboard() {
         if (label) label.textContent = PORTAL_LABELS[currentRole] || PORTAL_LABELS.student;
     }
 
-    // The admin has no profile page, so hide the profile buttons for them
+    // Clinic staff have no patient profile: their "Profile" is My Account
+    // in the admin page's settings
     function updateProfileButtons() {
         [deskProfileBtn, profileBtn].forEach((btn) => {
-            if (btn) btn.hidden = currentRole === "admin";
+            if (btn) btn.setAttribute("href", profilePage());
         });
     }
 
@@ -193,8 +194,8 @@ function initDashboard() {
             emailInput.value = user.email || "";
         }
 
-        // ---- Admin: no student/employee record, so skip the lookup ----
-        if (user.uid === ADMIN_UID) {
+        // ---- Clinic staff (admin): no student/employee record ----
+        function showAsAdmin() {
 
             currentRole = "admin";
 
@@ -203,13 +204,23 @@ function initDashboard() {
             }
 
             if (userRoleDisplay) {
-                userRoleDisplay.textContent = "Admin";
+                userRoleDisplay.textContent = "Clinic Staff";
             }
+
+            // Own notifications + the clinic's shared inbox
+            mountBell(user.uid, [
+                document.getElementById("bellSlotDesktop"),
+                document.getElementById("bellSlotMobile")
+            ], { channels: [user.uid, "clinic"] });
 
             updateServiceLinks();
             updateProfileButtons();
             updatePortalLabel();
             updateNavLinks();
+        }
+
+        if (user.uid === ADMIN_UID) {
+            showAsAdmin();
             return;
         }
 
@@ -229,14 +240,10 @@ function initDashboard() {
                 if (employeeSnap.exists()) {
                     currentRole = "employee";
                     userData = employeeSnap.val();
-                } else {
-                    // Doctors / nurses / dentists have their own dashboard
-                    const staffSnap = await get(ref(db, `staff/${user.uid}`)).catch(() => null);
-
-                    if (staffSnap?.exists()) {
-                        window.location.replace("../staff/staff.html");
-                        return;
-                    }
+                } else if (await isClinicAdmin(user)) {
+                    // Clinic staff accounts added by the admin
+                    showAsAdmin();
+                    return;
                 }
             }
 

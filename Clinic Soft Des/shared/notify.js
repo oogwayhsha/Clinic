@@ -1,6 +1,8 @@
 // ==========================================
 // NOTIFICATIONS
 // - In-app:  notifications/{uid}/{id}  (the bell in the header, live)
+//            notifications/clinic/{id} is the clinic's shared inbox:
+//            every admin / clinic staff account sees it
 // - Device:  browser/phone notifications while the site is open
 // - Email:   EmailJS (see config.js and SETUP.md)
 // ==========================================
@@ -236,11 +238,14 @@ function timeAgo(ms) {
     return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function mountBell(uid, containers) {
+// channels: which inboxes to show, e.g. [uid] or [uid, "clinic"]
+export function mountBell(uid, containers, { channels = [uid] } = {}) {
 
     const targets = containers.filter(Boolean);
 
     if (!uid || targets.length === 0) return;
+
+    const byChannel = {};
 
     registerServiceWorker();
 
@@ -296,7 +301,7 @@ export function mountBell(uid, containers) {
                 ${items.length === 0
                     ? '<p class="bell-empty">You have no notifications yet.</p>'
                     : items.map((n) => `
-                        <button type="button" class="bell-item${n.read ? "" : " unread"} ${escapeHtml(n.kind || "info")}" data-id="${escapeHtml(n.id)}">
+                        <button type="button" class="bell-item${n.read ? "" : " unread"} ${escapeHtml(n.kind || "info")}" data-id="${escapeHtml(n.key)}">
                             <strong>${escapeHtml(n.title)}</strong>
                             ${n.body ? `<span>${escapeHtml(n.body)}</span>` : ""}
                             <small>${timeAgo(n.createdAt)}</small>
@@ -341,10 +346,11 @@ export function mountBell(uid, containers) {
 
     window.addEventListener("resize", close);
 
-    async function markRead(ids) {
+    // keys look like "clinic/-Nabc": one update covers every inbox
+    async function markRead(keys) {
         const changes = {};
-        ids.forEach((id) => { changes[`${id}/read`] = true; });
-        if (ids.length) await update(ref(db, `notifications/${uid}`), changes).catch(() => {});
+        keys.forEach((key) => { changes[`notifications/${key}/read`] = true; });
+        if (keys.length) await update(ref(db), changes).catch(() => {});
     }
 
     panel.addEventListener("click", async (event) => {
@@ -352,7 +358,7 @@ export function mountBell(uid, containers) {
         event.stopPropagation();
 
         if (event.target.closest("[data-read-all]")) {
-            await markRead(unread().map((n) => n.id));
+            await markRead(unread().map((n) => n.key));
             return;
         }
 
@@ -366,10 +372,10 @@ export function mountBell(uid, containers) {
         const item = event.target.closest(".bell-item");
         if (!item) return;
 
-        const n = items.find((x) => x.id === item.dataset.id);
+        const n = items.find((x) => x.key === item.dataset.id);
         if (!n) return;
 
-        await markRead([n.id]);
+        await markRead([n.key]);
 
         if (n.url) {
             const target = new URL(resolveUrl(n.url));
@@ -384,24 +390,30 @@ export function mountBell(uid, containers) {
         }
     });
 
-    onValue(query(ref(db, `notifications/${uid}`), limitToLast(30)), (snapshot) => {
+    channels.forEach((channel) => {
 
-        items = Object.entries(snapshot.val() || {})
-            .map(([id, n]) => ({ id, ...n }))
-            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        onValue(query(ref(db, `notifications/${channel}`), limitToLast(30)), (snapshot) => {
 
-        // Pop a device notification for anything new since the page opened
-        items.forEach((n) => {
-            if (seen.has(n.id)) return;
-            seen.add(n.id);
-            if (!n.read && (n.createdAt || 0) > mountedAt) {
-                showDeviceNotification(n.title, n.body, n.url ? resolveUrl(n.url) : "");
-            }
-        });
+            byChannel[channel] = Object.entries(snapshot.val() || {})
+                .map(([id, n]) => ({ id, key: `${channel}/${id}`, ...n }));
 
-        render();
+            items = Object.values(byChannel).flat()
+                .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+                .slice(0, 40);
 
-    }, (error) => console.warn("Notifications unavailable:", error));
+            // Pop a device notification for anything new since the page opened
+            items.forEach((n) => {
+                if (seen.has(n.key)) return;
+                seen.add(n.key);
+                if (!n.read && (n.createdAt || 0) > mountedAt) {
+                    showDeviceNotification(n.title, n.body, n.url ? resolveUrl(n.url) : "");
+                }
+            });
+
+            render();
+
+        }, (error) => console.warn("Notifications unavailable:", error));
+    });
 
     render();
 }
@@ -489,7 +501,8 @@ export function mountBell(uid, containers) {
             return Promise.resolve({ name: user.email || "Admin", role: "Admin" });
         }
 
-        var folders = [["staff", "Clinic Staff"], ["students", "Student"], ["employees", "Employee"]];
+        // admins/{uid} = clinic staff with admin access
+        var folders = [["admins", "Clinic Staff"], ["students", "Student"], ["employees", "Employee"]];
 
         return folders.reduce(function (chain, pair) {
             return chain.then(function (found) {

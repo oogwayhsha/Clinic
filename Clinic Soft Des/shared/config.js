@@ -2,11 +2,41 @@
 // CLINIC SETTINGS YOU MAY NEED TO CHANGE
 // ==========================================
 
-// The hard-coded admin account (Firebase Console > Authentication > User UID).
-// Also used in database.rules.json: keep both in sync.
+// The main admin account (Firebase Console > Authentication > User UID).
+// It can always sign in as admin and add the other clinic staff
+// accounts from the admin page. Also used in database.rules.json:
+// keep both in sync.
 export const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
 
 export const CLINIC_NAME = "NUFV CARES";
+
+// Where "new appointment request" and "patient cancelled" emails go
+// (the clinic's shared inbox). Leave empty to skip those emails; the
+// bell on the admin page still shows them.
+export const CLINIC_EMAIL = "";
+
+
+/* =========================================
+   CLINIC HOURS
+   One appointment per 30-minute slot, whatever the reason.
+   days: 0 = Sunday ... 6 = Saturday. Times are 24-hour.
+   The last slot starts 30 minutes before closing (8:30 PM).
+========================================= */
+
+export const CLINIC_HOURS = {
+    days: [1, 2, 3, 4, 5, 6],   // Monday to Saturday
+    open: "07:00",
+    close: "21:00"
+};
+
+export const SLOT_MINUTES = 30;
+export const BOOKING_WINDOW_DAYS = 14;   // how far ahead patients can book
+
+// Keeps one person from holding many slots ("ghost booking")
+export const BOOKING_LIMITS = {
+    perDay: 1,      // active appointments a patient may have on one day
+    upcoming: 3     // active upcoming appointments in total
+};
 
 
 /* =========================================
