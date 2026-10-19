@@ -348,3 +348,29 @@ footer p { color: var(--muted); font-size: 12px; }
     .brand span { display: none; }
     .slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+
+#reason {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px;
+    border: 1px solid #d6deeb;
+    border-radius: 12px;
+    background: white;
+    font: inherit;
+    color: #0b1c4e;
+}
+
+#otherReasonWrap {
+    margin-top: 12px;
+}
+
+#otherReasonWrap[hidden] {
+    display: none;
+}
+
+#otherReason {
+    width: 100%;
+    box-sizing: border-box;
+}
