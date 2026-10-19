@@ -18,15 +18,11 @@ const loginMessage = document.getElementById("loginMessage");
 // Firebase Console > Authentication > Add user, then list the email here.
 const ADMIN_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real admin email
 
-// Employees and clinic staff now land on the admin page.
-// Students keep their own dashboard.
-const ADMIN_PAGE = "../admin/admin.html";
-
 const DESTINATIONS = {
   student: "../dashboard/dashboard.html",
-  employee: ADMIN_PAGE,
-  staff: ADMIN_PAGE,
-  admin: ADMIN_PAGE
+  employee: "../dashboard/dashboard.html",
+  staff: "../staff/staff.html",
+  admin: "../admin/admin.html"
 };
 
 const ROLE_NAMES = {
