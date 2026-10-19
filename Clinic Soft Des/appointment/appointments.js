@@ -75,6 +75,13 @@ import {
 } from "../shared/actions.js";
 
 
+import {
+    DEFAULT_REASONS,
+    normalizeReasons
+} from "../shared/reasons.js";
+
+
+
 document.addEventListener("DOMContentLoaded", () => {
 
     // <body data-role="student|employee"> decides which kind of patient this is
