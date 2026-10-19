@@ -14,22 +14,21 @@ const emailError = document.getElementById("loginEmailError");
 const passwordError = document.getElementById("loginPasswordError");
 const loginMessage = document.getElementById("loginMessage");
 
-// Admin accounts are NOT registrable. Create them manually in
+// Employee accounts are NOT registrable. Create them manually in
 // Firebase Console > Authentication > Add user, then list the email here.
-const ADMIN_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real admin email
+const EMPLOYEE_EMAILS = ["admin@nufv-cares.edu.ph"]; // <-- change to your real employee email(s)
+
+// Employees go to the admin dashboard. Students keep their own.
+const EMPLOYEE_PAGE = "../admin/admin.html";
 
 const DESTINATIONS = {
   student: "../dashboard/dashboard.html",
-  employee: "../dashboard/dashboard.html",
-  staff: "../staff/staff.html",
-  admin: "../admin/admin.html"
+  employee: EMPLOYEE_PAGE
 };
 
 const ROLE_NAMES = {
   student: "student",
-  employee: "employee",
-  staff: "clinic staff",
-  admin: "admin"
+  employee: "employee"
 };
 
 // ==========================================
@@ -85,35 +84,22 @@ passwordField.addEventListener("input", () => {
 // otherwise a message (and the user is signed out again).
 // ==========================================
 async function checkRole(user, role) {
-  const isAdminAccount = user.uid === ADMIN_UID || ADMIN_EMAILS.includes((user.email || "").toLowerCase());
+  const isEmployeeAccount =
+    user.uid === ADMIN_UID ||
+    EMPLOYEE_EMAILS.includes((user.email || "").toLowerCase());
 
-  if ((role === "admin") !== isAdminAccount) {
+  if ((role === "employee") !== isEmployeeAccount) {
     await signOut(auth);
-    return "This account is not " + (role === "admin" ? "an admin" : "a " + ROLE_NAMES[role]) + " account.";
+    return "This account is not a" + (role === "employee" ? "n employee" : " student") + " account.";
   }
 
-  if (role === "staff") {
-    const snap = await get(ref(db, `staff/${user.uid}`));
+  // Students must also exist in the students folder
+  if (role === "student") {
+    const snap = await get(ref(db, `students/${user.uid}`));
 
     if (!snap.exists()) {
       await signOut(auth);
-      return "This account is not a clinic staff account.";
-    }
-
-    if (snap.val().active === false) {
-      await signOut(auth);
-      return "This staff account has been deactivated. Please contact the clinic admin.";
-    }
-  }
-
-  // Student / Employee: the account must exist in the matching folder
-  if (role === "student" || role === "employee") {
-    const folder = role === "student" ? "students" : "employees";
-    const snap = await get(ref(db, `${folder}/${user.uid}`));
-
-    if (!snap.exists()) {
-      await signOut(auth);
-      return "This account is not a " + role + " account.";
+      return "This account is not a student account.";
     }
   }
 
