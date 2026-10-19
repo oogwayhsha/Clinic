@@ -489,9 +489,58 @@ document.addEventListener("DOMContentLoaded", () => {
        STEP 5: REASON + MEDICAL HISTORY
     ========================================= */
 
-    $("reason").addEventListener("input", () => {
-        $("reasonCount").textContent = `${$("reason").value.length} / ${MAX_REASON}`;
+   
+const reasonSelect = $("reason");
+const otherReason = $("otherReason");
+
+function renderReasons(items) {
+    const previous = reasonSelect.value;
+
+    reasonSelect.replaceChildren(
+        new Option("Select a reason", "")
+    );
+
+    items.forEach(item => {
+        reasonSelect.add(
+            new Option(item.name, item.name)
+        );
     });
+
+    if ([...reasonSelect.options].some(
+        option => option.value === previous
+    )) {
+        reasonSelect.value = previous;
+    }
+
+    reasonSelect.dispatchEvent(
+        new Event("change")
+    );
+}
+
+reasonSelect.addEventListener("change", () => {
+    $("otherReasonWrap").hidden =
+        reasonSelect.value !== "Other";
+});
+
+otherReason.addEventListener("input", () => {
+    $("reasonCount").textContent =
+        `${otherReason.value.length} / ${MAX_REASON}`;
+});
+
+renderReasons(
+    DEFAULT_REASONS.map(name => ({ name }))
+);
+
+onValue(
+    ref(db, "bookingReasons"),
+    snapshot => renderReasons(
+        normalizeReasons(snapshot.val())
+    ),
+    error => console.warn(
+        "Could not load booking reasons", error
+    )
+);
+
 
     $("mhConditions").innerHTML = CONDITIONS.map((name, i) => `
         <label class="check-row">
@@ -658,7 +707,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     serviceName: service.name,
                     date: state.date,
                     time: state.time,
-                    reason: $("reason").value.trim(),
+                    
+                    reason: reasonSelect.value === "Other"
+                    ? otherReason.value.trim()
+                    : reasonSelect.value,
+
                     medicalHistory: history,
                     providerPref: state.pref.kind === "type" ? state.pref.type : state.pref.kind,
                     requestedStaffId: state.pref.kind === "person" ? state.pref.staffId : null,
