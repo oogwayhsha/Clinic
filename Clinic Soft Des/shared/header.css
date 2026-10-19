@@ -14,7 +14,7 @@
 .topbar {
     position: sticky;
     top: 0;
-    z-index: 50;
+    z-index: 950;
     width: 100%;
     min-height: 88px;
     box-sizing: border-box;
