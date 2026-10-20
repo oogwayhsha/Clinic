@@ -1,0 +1,24 @@
+{
+"version": "0.2.0",
+"configurations": [
+{
+"type": "chrome",
+"request": "launch",
+"name": "Launch index.html (Chrome)",
+"file": "${workspaceFolder}/index.html"
+},
+{
+"type": "msedge",
+"request": "launch",
+"name": "Launch index.html (Edge)",
+"file": "${workspaceFolder}/index.html"
+},
+{
+"type": "chrome",
+"request": "launch",
+"name": "Launch via Live Server (Requires Extension)",
+"url": "http://localhost:5500",
+"webRoot": "${workspaceFolder}"
+}
+]
+}
