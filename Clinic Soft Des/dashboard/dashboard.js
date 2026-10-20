@@ -103,8 +103,8 @@ function initDashboard() {
 
             card.setAttribute(
                 "href",
-                // Booking starts with the reason, so every card opens the same page
-                currentRole === "admin" ? ADMIN_PAGE : appointmentPage()
+                // The booking page picks the matching reason from the clinic's list
+                currentRole === "admin" ? ADMIN_PAGE : `${appointmentPage()}?service=${encodeURIComponent(service)}`
             );
         });
     }

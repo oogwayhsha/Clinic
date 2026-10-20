@@ -4,6 +4,7 @@
 import { auth, db } from "../firebase/firebase.js";
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
 import { ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+import { PROGRAMS } from "../shared/config.js";
 
 let currentRole = "student";
 
@@ -19,6 +20,10 @@ const regMessage = document.getElementById("regMessage");
 
 // Prevents double submissions (e.g. Enter key + button click)
 let isSubmitting = false;
+
+// Program dropdown (list in shared/config.js)
+const programSelect = document.getElementById("studentProgram");
+PROGRAMS.forEach((name) => programSelect.add(new Option(name, name)));
 
 // ==========================================
 // ERROR HELPERS
@@ -92,9 +97,6 @@ document.querySelectorAll("#registerForm input, #registerForm select").forEach((
 const INPUT_RULES = {
   // Letters (incl. accented), spaces, . ' -
   regName:        { block: /[^A-Za-zÀ-ÿ.'\- ]/g,            max: 60 },
-
-  // Letters, spaces, & . - ( )
-  studentProgram: { block: /[^A-Za-z&.\-() ]/g,             max: 40 },
 
   // Letters, digits, spaces, & . , - ( ) /
   employeeDept:   { block: /[^A-Za-z0-9&.,\-()\/ ]/g,       max: 60 },
@@ -265,7 +267,7 @@ async function handleRegister() {
   if (currentRole === "student") {
     studentId = formatStudentId(document.getElementById("studentId").value.trim());
     document.getElementById("studentId").value = studentId;
-    studentProgram = document.getElementById("studentProgram").value.trim();
+    studentProgram = document.getElementById("studentProgram").value;
     studentYear = document.getElementById("studentYear").value;
 
     // Pattern for format like 2022-1234567 (4 digits, hyphen, 7 digits)
@@ -276,8 +278,8 @@ async function handleRegister() {
     } else if (!studentIdPattern.test(studentId)) {
       fail("studentId", "Invalid format. Use YYYY-XXXXXX or YYYY-XXXXXXX (e.g., 2022-123456).");
     }
-    if (studentProgram === "") {
-      fail("studentProgram", "Program is required.");
+    if (!PROGRAMS.includes(studentProgram)) {
+      fail("studentProgram", "Select your program.");
     }
 
     if (studentYear === "") {

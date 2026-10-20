@@ -148,8 +148,8 @@ footer p { color: var(--muted); font-size: 12px; }
 /* FORM */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; color: #4e5b70; font-size: 12px; font-weight: 600; margin-bottom: 7px; }
-.form-group input { width: 100%; border: 1px solid #dce2ec; border-radius: 9px; padding: 11px 12px; color: var(--text); background: white; outline: none; transition: .2s ease; }
-.form-group input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #eaf0ff; }
+.form-group input, .form-group select { width: 100%; border: 1px solid #dce2ec; border-radius: 9px; padding: 11px 12px; font: inherit; font-size: 14px; color: var(--text); background: white; outline: none; transition: .2s ease; }
+.form-group input:focus, .form-group select:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #eaf0ff; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
 .cancel-btn, .save-btn { border: 0; border-radius: 9px; padding: 10px 16px; font-size: 12px; font-weight: 700; }
 .cancel-btn { background: #f1f3f7; color: #5b6678; }

@@ -492,6 +492,7 @@ export function mountBell(uid, containers, { channels = [uid] } = {}) {
 
     var triggers = [];
     var whoamis = [];
+    var who = null;   // name and role of the signed-in person
 
     // Swap the plain user icon for the person's own photo, so the header
     // shows who is signed in. Without a photo the icon is left alone.
@@ -531,14 +532,24 @@ export function mountBell(uid, containers, { channels = [uid] } = {}) {
 
     function showOwnPhoto(photo) {
         triggers.forEach(function (trigger) {
-            var icon = trigger.querySelector(".pm-icon");
-            if (!icon) return;
+            var current = trigger.querySelector(".pm-icon, .pm-avatar");
+            if (!current) return;
+
+            if (!photo) {
+                if (current.classList.contains("pm-avatar")) current.outerHTML = USER_ICON;
+                return;
+            }
+
+            if (current.classList.contains("pm-avatar")) {
+                current.src = photo;
+                return;
+            }
 
             var img = document.createElement("img");
             img.className = "pm-avatar";
             img.src = photo;
             img.alt = "";
-            icon.replaceWith(img);
+            current.replaceWith(img);
         });
     }
 
@@ -559,10 +570,18 @@ export function mountBell(uid, containers, { channels = [uid] } = {}) {
             Promise.all([loadAvatar(user.uid), loadWho(user)])
                 .then(function (results) {
                     var photo = results[0];
+                    who = results[1];
                     if (photo) showOwnPhoto(photo);
-                    showWho(results[1], photo);
+                    showWho(who, photo);
                 })
                 .catch(function (error) { console.warn("Could not load the account menu:", error); });
+        });
+
+        // A profile page changed the photo: update the header straight away
+        window.addEventListener("avatarchange", function (e) {
+            var photo = (e.detail && e.detail.photo) || null;
+            showOwnPhoto(photo);
+            if (who) showWho(who, photo);
         });
     }
 

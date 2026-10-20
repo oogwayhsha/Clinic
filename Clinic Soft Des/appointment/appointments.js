@@ -45,6 +45,9 @@ import {
     isTaken,
     openSlots,
     reasonOf,
+    serviceOf,
+    serviceNameOf,
+    visitLabel,
     startOf,
     stateOf,
     stateLabel,
@@ -54,7 +57,7 @@ import {
     historyTimelineHtml
 } from "../shared/clinic.js";
 
-import { normalizeReasons } from "../shared/reasons.js";
+import { SERVICES, serviceName, normalizeReasons } from "../shared/reasons.js";
 import { isClinicAdmin } from "../shared/access.js";
 import { mountBell } from "../shared/notify.js";
 
@@ -115,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let openedFromLink = false;
 
     const state = {
+        service: "",
         reason: "",
         date: "",
         time: "",
@@ -159,23 +163,92 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================
-       STEP 1: REASON (the clinic's list)
+       STEP 1: SERVICE, STEP 2: REASON (the clinic's list for that service)
     ========================================= */
+
+    const SERVICE_ICONS = {
+        consultation: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>',
+        dental: '<path d="M7 4c-2.2 0-4 1.8-4 4.2 0 1.7.6 2.8 1.1 4.3C4.6 14.4 5 20 7 20c1.6 0 1.5-4 3-4h4c1.5 0 1.4 4 3 4 2 0 2.4-5.6 2.9-7.5.5-1.5 1.1-2.6 1.1-4.3C21 5.8 19.2 4 17 4c-1.5 0-2.5 1-5 1S8.5 4 7 4z"></path>',
+        certificate: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><polyline points="9 15 11 17 15 13"></polyline>'
+    };
+
+    const reasonsFor = (service) => reasons.filter((r) => r.service === service);
+
+    // ?service=dental (from a dashboard card) picks the service
+    const linkedService = new URLSearchParams(location.search).get("service");
+    if (SERVICES.some((s) => s.id === linkedService)) state.service = linkedService;
+
+    function renderServices() {
+
+        $("serviceList").innerHTML = SERVICES.map((s) => {
+            const available = reasonsFor(s.id).length > 0;
+            const selected = state.service === s.id;
+
+            return `
+                <button type="button" class="service-option${selected ? " selected" : ""}" role="radio"
+                        aria-checked="${selected}" data-service="${s.id}" ${available ? "" : "disabled"}>
+                    <span class="service-option-icon ${s.id}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SERVICE_ICONS[s.id]}</svg>
+                    </span>
+                    <span class="service-option-text">
+                        <strong>${escapeHtml(s.name)}</strong>
+                        <small>${available ? escapeHtml(s.blurb) : "Not open for booking right now."}</small>
+                    </span>
+                </button>`;
+        }).join("");
+    }
 
     function renderReasons() {
 
+        // The clinic may have switched off every reason of the chosen service
+        if (state.service && reasonsFor(state.service).length === 0) state.service = "";
+
+        renderServices();
+
         const select = $("reason");
+        const list = reasonsFor(state.service);
         const previous = state.reason;
 
-        select.replaceChildren(new Option("Select a reason", ""));
-        reasons.forEach((r) => select.add(new Option(r.name, r.name)));
+        select.disabled = !state.service;
+        select.replaceChildren(new Option(state.service ? "Select a reason" : "Choose a service first", ""));
+        list.forEach((r) => select.add(new Option(r.name, r.name)));
 
-        // Keep the choice if the clinic didn't remove it in the meantime
-        state.reason = reasons.some((r) => r.name === previous) ? previous : "";
+        // Keep the choice if it's still on the list for this service
+        state.reason = list.some((r) => r.name === previous) ? previous : "";
         select.value = state.reason;
+
+        $("reasonNote").textContent = state.service
+            ? `${serviceName(state.service)}: choose the one that fits best.`
+            : "Choose a service first.";
 
         updateSummary();
     }
+
+    $("serviceList").addEventListener("click", (event) => {
+        const option = event.target.closest("[data-service]");
+        if (!option || option.disabled) return;
+
+        if (state.service !== option.dataset.service) {
+            state.service = option.dataset.service;
+            state.reason = "";
+        }
+
+        renderReasons();
+        $("reason").focus();
+    });
+
+    // Arrow keys move between services, like radio buttons
+    $("serviceList").addEventListener("keydown", (event) => {
+        if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) return;
+
+        const options = [...$("serviceList").querySelectorAll("[data-service]:not([disabled])")];
+        const index = options.indexOf(document.activeElement);
+        if (index < 0) return;
+
+        event.preventDefault();
+        const step = ["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : -1;
+        options[(index + step + options.length) % options.length].focus();
+    });
 
     $("reason").addEventListener("change", (event) => {
         state.reason = event.target.value;
@@ -334,6 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateSummary() {
 
+        setSummary("sumService", serviceName(state.service));
         setSummary("sumReason", state.reason);
         setSummary("sumDate", state.date ? formatDateLong(state.date) : "");
         setSummary("sumTime", state.time ? formatRange(state.time) : "");
@@ -343,7 +417,7 @@ document.addEventListener("DOMContentLoaded", () => {
             : "Loading...";
 
         $("confirmBtn").disabled =
-            !(state.reason && state.date && state.time) || state.submitting || !currentUser;
+            !(state.service && state.reason && state.date && state.time) || state.submitting || !currentUser;
 
         $("confirmBtn").textContent = state.submitting ? "Sending..." : "Send Request";
     }
@@ -386,7 +460,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function submitBooking() {
 
         if (!currentUser || state.submitting) return;
-        if (!(state.reason && state.date && state.time)) return;
+        if (!(state.service && state.reason && state.date && state.time)) return;
 
         // The chosen time may have passed while the page was open
         if (isSlotPast(state.date, state.time)) {
@@ -417,6 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 patientPhone: patient.phone,
                 patientEmail: patient.email,
                 patientRole: PAGE_ROLE,
+                service: state.service,
                 reason: state.reason,
                 date: state.date,
                 time: state.time,
@@ -429,7 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         byRole: "patient",
                         byName: patient.name,
                         at: serverTimestamp(),
-                        note: state.reason
+                        note: `${serviceName(state.service)} · ${state.reason}`
                     }
                 }
             };
@@ -551,7 +626,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const action = canCancel
             ? `<button type="button" class="link-btn danger" data-cancel="${escapeHtml(a.id)}">Cancel</button>`
             : (bucket !== "upcoming"
-                ? `<button type="button" class="link-btn" data-rebook="${escapeHtml(reasonOf(a))}">Book again</button>`
+                ? `<button type="button" class="link-btn" data-rebook="${escapeHtml(a.id)}">Book again</button>`
                 : "");
 
         return `
@@ -562,6 +637,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
 
                 <div class="appt-info">
+                    <span class="appt-service">${escapeHtml(serviceNameOf(a))}</span>
                     <h4>${escapeHtml(reasonOf(a))}</h4>
                     <p class="appt-when">${when}</p>
 
@@ -708,7 +784,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (rebook) {
-            if (reasons.some((r) => r.name === rebook.dataset.rebook)) state.reason = rebook.dataset.rebook;
+            const old = myAppointments.find((item) => item.id === rebook.dataset.rebook);
+
+            // Same service and reason as before, if the clinic still offers them
+            if (old && reasonsFor(serviceOf(old)).length) {
+                state.service = serviceOf(old);
+                state.reason = reasonsFor(state.service).some((r) => r.name === reasonOf(old)) ? reasonOf(old) : "";
+            }
+
             renderReasons();
             showTab("book");
             window.scrollTo({ top: 0, behavior: "smooth" });
@@ -736,7 +819,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const hoursAway = (startOf(a) - new Date()) / 36e5;
 
         $("cancelDetail").innerHTML =
-            `<strong>${escapeHtml(reasonOf(a))}</strong><br>${formatDateLong(a.date)} at ${formatTime(a.time)}` +
+            `<strong>${escapeHtml(visitLabel(a))}</strong><br>${formatDateLong(a.date)} at ${formatTime(a.time)}` +
             (hoursAway < 24
                 ? '<span class="warn">This appointment is less than a day away. Please cancel only if you really can\'t make it.</span>'
                 : "");

@@ -216,7 +216,7 @@
                             <select id="weekStatusFilter" class="status-select"></select>
                         </div>
                         <div class="week-filter-group">
-                            <label for="weekReasonFilter">Reason</label>
+                            <label for="weekReasonFilter">Service</label>
                             <select id="weekReasonFilter" class="reason-filter"></select>
                         </div>
                         <div class="week-filter-group search">
@@ -258,7 +258,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="reasonFilter">Reason</label>
+                            <label for="reasonFilter">Service / reason</label>
                             <select id="reasonFilter" class="reason-filter"></select>
                         </div>
 
@@ -320,10 +320,11 @@
                         <div class="card-header">
                             <span class="section-label">BOOKING</span>
                             <h3>Reasons patients can choose</h3>
-                            <p>Patients pick one of these when they book. Switched-off reasons are hidden from them but stay on old appointments.</p>
+                            <p>Patients first pick a service, then one of its reasons. Switched-off reasons are hidden from them but stay on old appointments.</p>
                         </div>
 
                         <form class="inline-form" id="reasonForm">
+                            <select id="reasonService" aria-label="Service for the new reason"></select>
                             <input type="text" id="reasonName" maxlength="100" placeholder="New reason, e.g. Blood Pressure Check" aria-label="New booking reason">
                             <button type="submit" class="btn-primary">Add</button>
                         </form>

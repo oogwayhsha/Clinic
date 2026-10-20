@@ -51,17 +51,21 @@ import {
     STATE_INFO,
     startOf,
     reasonOf,
+    serviceOf,
+    serviceNameOf,
+    visitLabel,
     isActive,
     reminderTimes,
     historyTimelineHtml
 } from "../shared/clinic.js";
 
-import { DEFAULT_REASONS, REASON_MAX, allReasons } from "../shared/reasons.js";
+import { SERVICES, DEFAULT_REASONS, REASON_MAX, allReasons, normalizeReasons } from "../shared/reasons.js";
 import { adminRecord } from "../shared/access.js";
 import { mountBell } from "../shared/notify.js";
 
 import {
     loadAvatar,
+    loadAvatars,
     saveAvatar,
     avatarInner,
     pickImage,
@@ -139,6 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let all = [];               // every appointment
     let profiles = {};          // uid -> student / employee record
     let admins = {};            // uid -> clinic staff account
+    let staffPhotos = {};       // uid -> profile photo of a clinic staff member
     let reasonsData = null;     // bookingReasons
     let closures = {};          // clinicClosures/{date} = note
     let slotIndex = {};         // timeSlots/{date}/{HHMM} = appointment id
@@ -192,11 +197,18 @@ document.addEventListener("DOMContentLoaded", () => {
         onValue(ref(db, "admins"), (snapshot) => {
             admins = snapshot.val() || {};
             renderStaff();
+
+            // Photos load after the list so it shows straight away
+            loadAvatars([ADMIN_UID, ...Object.keys(admins)]).then((photos) => {
+                staffPhotos = photos;
+                renderStaff();
+            });
         }, (error) => console.warn("Could not load staff accounts:", error));
 
         onValue(ref(db, "bookingReasons"), (snapshot) => {
             reasonsData = snapshot.val();
             if (!reasonsData) seedReasons();
+            else migrateReasons();
             fillReasonFilters();
             renderReasonsAdmin();
         }, (error) => console.warn("Could not load reasons:", error));
@@ -262,29 +274,59 @@ document.addEventListener("DOMContentLoaded", () => {
         STATUS_OPTIONS.forEach(([value, label]) => select.add(new Option(label, value)));
     });
 
-    function reasonNames() {
-        const names = new Set(allReasons(reasonsData).map((r) => r.name));
-        if (!reasonsData) DEFAULT_REASONS.forEach((n) => names.add(n));
-        all.forEach((a) => names.add(reasonOf(a)));
-        return [...names].sort((a, b) => a.localeCompare(b));
+    // Service -> every reason name seen (the clinic's list + past appointments)
+    function reasonNamesByService() {
+        const groups = Object.fromEntries(SERVICES.map((sv) => [sv.id, new Set()]));
+        const add = (service, name) => groups[service]?.add(name);
+
+        (reasonsData ? allReasons(reasonsData) : normalizeReasons(null)).forEach((r) => add(r.service, r.name));
+        all.forEach((a) => add(serviceOf(a), reasonOf(a)));
+
+        return Object.fromEntries(Object.entries(groups).map(([id, names]) => [id, [...names].sort((a, b) => a.localeCompare(b))]));
     }
 
+    // Filter values: "all", "service:<id>" (a whole service) or a reason name
     function fillReasonFilters() {
-        const names = reasonNames();
+        const groups = reasonNamesByService();
+        const values = ["all"];
+
         document.querySelectorAll(".reason-filter").forEach((select) => {
             const current = select.value || "all";
-            select.replaceChildren(new Option("All reasons", "all"));
-            names.forEach((n) => select.add(new Option(n, n)));
-            select.value = names.includes(current) ? current : "all";
+            select.replaceChildren(new Option("All services", "all"));
+
+            const services = document.createElement("optgroup");
+            services.label = "Services";
+            SERVICES.forEach((sv) => {
+                services.append(new Option(`All ${sv.name}`, `service:${sv.id}`));
+                values.push(`service:${sv.id}`);
+            });
+            select.append(services);
+
+            SERVICES.forEach((sv) => {
+                if (!groups[sv.id].length) return;
+                const group = document.createElement("optgroup");
+                group.label = sv.name;
+                groups[sv.id].forEach((name) => {
+                    group.append(new Option(name, name));
+                    values.push(name);
+                });
+                select.append(group);
+            });
+
+            select.value = values.includes(current) ? current : "all";
         });
     }
+
+    const matchesReason = (a, value) =>
+        value === "all" ||
+        (value.startsWith("service:") ? serviceOf(a) === value.slice(8) : reasonOf(a) === value);
 
     const matchesStatus = (a, status) =>
         status === "all" ||
         (status === "active" ? !["cancelled", "declined"].includes(statusOf(a)) : statusOf(a) === status);
 
     const matchesSearch = (a, term) =>
-        !term || `${patientName(a)} ${patientId(a)} ${reasonOf(a)} ${patientEmail(a)}`.toLowerCase().includes(term);
+        !term || `${patientName(a)} ${patientId(a)} ${visitLabel(a)} ${patientEmail(a)}`.toLowerCase().includes(term);
 
     function filtered() {
 
@@ -300,7 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (filters.range === "past" && date >= today) return false;
 
             if (!matchesStatus(a, filters.status)) return false;
-            if (filters.reason !== "all" && reasonOf(a) !== filters.reason) return false;
+            if (!matchesReason(a, filters.reason)) return false;
             if (filters.role !== "all" && patientRole(a) !== filters.role) return false;
 
             return matchesSearch(a, term);
@@ -455,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${clash.has(a.id) ? '<span class="type-chip clash">Double-booked</span>' : ""}
                     </div>
 
-                    <p class="appt-reason-title">${escapeHtml(reasonOf(a))}</p>
+                    <p class="appt-reason-title"><span class="service-tag ${serviceOf(a)}">${escapeHtml(serviceNameOf(a))}</span> ${escapeHtml(reasonOf(a))}</p>
                     ${attendance ? `<p class="appt-handled">${escapeHtml(attendance)}</p>` : ""}
                     ${a.instructions ? `<p class="appt-reason"><strong>Instructions:</strong> ${escapeHtml(a.instructions)}</p>` : ""}
                     ${a.clinicNote ? `<p class="appt-reason"><strong>Note sent:</strong> ${escapeHtml(a.clinicNote)}</p>` : ""}
@@ -519,7 +561,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return all.filter((a) => {
             if (!a.date || !dayKeys.has(a.date)) return false;
             if (!matchesStatus(a, weekFilters.status)) return false;
-            if (weekFilters.reason !== "all" && reasonOf(a) !== weekFilters.reason) return false;
+            if (!matchesReason(a, weekFilters.reason)) return false;
             return matchesSearch(a, term);
         }).sort((a, b) => startOf(a) - startOf(b));
     }
@@ -597,7 +639,10 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${id ? `<div><strong>${escapeHtml(id)}</strong></div>` : ""}
                         ${detail ? `<small class="muted-text">${escapeHtml(detail)}</small>` : ""}
                     </td>
-                    <td><span class="table-reason">${escapeHtml(reasonOf(a))}</span></td>
+                    <td>
+                        <span class="service-tag ${serviceOf(a)}">${escapeHtml(serviceNameOf(a))}</span>
+                        <span class="table-reason">${escapeHtml(reasonOf(a))}</span>
+                    </td>
                     <td>${badge(a)}</td>
                     <td><div class="table-actions-cell">${buttons || '<span class="muted-text">No actions</span>'}</div></td>
                 </tr>
@@ -614,7 +659,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <th>Time Slot</th>
                                 <th>Patient</th>
                                 <th>ID / Details</th>
-                                <th>Reason</th>
+                                <th>Service / Reason</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -650,7 +695,10 @@ document.addEventListener("DOMContentLoaded", () => {
                                         ${patientId(a) ? `<span>${escapeHtml(patientId(a))}</span>` : ""}
                                     </div>
                                 </div>
-                                <div class="grid-card-service">${escapeHtml(reasonOf(a))}</div>
+                                <div class="grid-card-service">
+                                    <span class="service-tag ${serviceOf(a)}">${escapeHtml(serviceNameOf(a))}</span>
+                                    ${escapeHtml(reasonOf(a))}
+                                </div>
                                 ${buttons ? `<div class="grid-card-actions">${buttons}</div>` : ""}
                             </div>
                         `;
@@ -872,7 +920,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <strong>${v.date ? escapeHtml(formatDateShort(v.date)) : "--"} · ${v.time ? formatTime(v.time) : ""}</strong>
                                 ${badge(v)}
                             </div>
-                            <p>${escapeHtml(reasonOf(v))}</p>
+                            <p>${escapeHtml(visitLabel(v))}</p>
                             ${v.instructions ? `<p class="visit-reason">Instructions: ${escapeHtml(v.instructions)}</p>` : ""}
                             ${v.declineReason ? `<p class="visit-reason">Declined: ${escapeHtml(v.declineReason)}</p>` : ""}
                             ${v.clinicNote ? `<p class="visit-reason">Clinic note: ${escapeHtml(v.clinicNote)}</p>` : ""}
@@ -903,7 +951,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
 
     const detailText = (a) =>
-        `<strong>${escapeHtml(patientName(a))}</strong> · ${escapeHtml(reasonOf(a))}<br>` +
+        `<strong>${escapeHtml(patientName(a))}</strong> · ${escapeHtml(visitLabel(a))}<br>` +
         `${a.date ? escapeHtml(formatDateLong(a.date)) : ""}${a.time ? `, ${escapeHtml(formatRange(a.time))}` : ""}`;
 
     function openApprove(a, onlyInstructions) {
@@ -1212,20 +1260,62 @@ document.addEventListener("DOMContentLoaded", () => {
     // so two staff opening the page at once can't both add it.
     async function seedReasons() {
         const data = {};
-        DEFAULT_REASONS.forEach((name, order) => {
-            data[push(ref(db, "bookingReasons")).key] = { name, active: true, order };
+        DEFAULT_REASONS.forEach(({ name, service }, order) => {
+            data[push(ref(db, "bookingReasons")).key] = { name, service, active: true, order };
         });
         await runTransaction(ref(db, "bookingReasons"), (current) => (current ? undefined : data))
             .catch((error) => console.warn("Couldn't save the default reasons:", error));
+    }
+
+    // Lists saved before services existed: file each reason under its service
+    // (from its wording) and add the default dental reasons if there are none.
+    // Runs once: afterwards every reason has a service.
+    let migrating = false;
+
+    async function migrateReasons() {
+
+        const saved = Object.entries(reasonsData || {});
+        if (migrating || saved.every(([, r]) => r?.service)) return;
+        migrating = true;
+
+        const list = allReasons(reasonsData);
+        const changes = {};
+
+        list.forEach((r) => {
+            if (!reasonsData[r.id]?.service) changes[`bookingReasons/${r.id}/service`] = r.service;
+        });
+
+        if (!list.some((r) => r.service === "dental")) {
+            const top = Math.max(0, ...list.map((r) => Number(r.order) || 0));
+            DEFAULT_REASONS.filter((r) => r.service === "dental").forEach(({ name, service }, i) => {
+                changes[`bookingReasons/${push(ref(db, "bookingReasons")).key}`] = { name, service, active: true, order: top + 1 + i };
+            });
+        }
+
+        await update(ref(db), changes).catch((error) => console.warn("Couldn't sort the reasons into services:", error));
+        migrating = false;
     }
 
     function renderReasonsAdmin() {
 
         const list = allReasons(reasonsData);
 
-        $("reasonList").innerHTML = list.length === 0
-            ? '<li class="muted-text">No reasons yet. Add one above.</li>'
-            : list.map((r, i) => `
+        if (list.length === 0) {
+            $("reasonList").innerHTML = '<li class="muted-text">No reasons yet. Add one above.</li>';
+            return;
+        }
+
+        // One block per service; arrows move a reason within its service
+        $("reasonList").innerHTML = SERVICES.map((sv) => {
+            const group = list.filter((r) => r.service === sv.id);
+            const shown = group.filter((r) => r.active !== false).length;
+
+            return `
+                <li class="reason-group-title">
+                    <span class="service-tag ${sv.id}">${escapeHtml(sv.name)}</span>
+                    <small>${shown ? counted(shown, "reason") + " shown" : "No reasons shown: patients can't book this service"}</small>
+                </li>` +
+                group.map((r, i) => `
                 <li class="reason-row${r.active === false ? " off" : ""}" data-reason="${escapeHtml(r.id)}">
                     <input type="text" value="${escapeHtml(r.name)}" maxlength="${REASON_MAX}" aria-label="Reason name" data-rename>
                     <label class="switch-mini" title="${r.active === false ? "Hidden from patients" : "Shown to patients"}">
@@ -1233,27 +1323,33 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span>${r.active === false ? "Off" : "On"}</span>
                     </label>
                     <button type="button" class="icon-btn" data-move="-1" ${i === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
-                    <button type="button" class="icon-btn" data-move="1" ${i === list.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
+                    <button type="button" class="icon-btn" data-move="1" ${i === group.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
                     <button type="button" class="icon-btn danger" data-delete aria-label="Delete reason">×</button>
                 </li>`).join("");
+        }).join("");
     }
+
+    SERVICES.forEach((sv) => $("reasonService").add(new Option(sv.name, sv.id)));
 
     $("reasonForm").addEventListener("submit", async (event) => {
         event.preventDefault();
 
         const name = $("reasonName").value.trim();
+        const service = $("reasonService").value;
         if (!name) return;
 
         const list = allReasons(reasonsData);
+        const group = list.filter((r) => r.service === service);
 
-        if (list.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
-            toast("That reason is already on the list.", "error");
+        if (group.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
+            toast("That reason is already on this service's list.", "error");
             return;
         }
 
         try {
             await set(push(ref(db, "bookingReasons")), {
                 name,
+                service,
                 active: true,
                 order: list.length ? Math.max(...list.map((r) => Number(r.order) || 0)) + 1 : 0
             });
@@ -1295,7 +1391,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = event.target.closest("[data-reason]");
         if (!row) return;
 
-        const list = allReasons(reasonsData);
+        const saved = allReasons(reasonsData);
+        const service = saved.find((r) => r.id === row.dataset.reason)?.service;
+        const list = saved.filter((r) => r.service === service);
         const index = list.findIndex((r) => r.id === row.dataset.reason);
         if (index < 0) return;
 
@@ -1418,7 +1516,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const row = (s, isMain) => `
             <div class="staff-row${s.active === false ? " inactive" : ""}">
-                <span class="person-avatar">${avatarInner(null, s.name || s.email)}</span>
+                <span class="person-avatar">${avatarInner(s.uid === adminUser.uid ? myPhoto : staffPhotos[s.uid], s.name || s.email)}</span>
                 <span class="staff-main">
                     <strong>${escapeHtml(s.name || s.email || "Clinic staff")}${s.uid === adminUser.uid ? " (you)" : ""}</strong>
                     <small>${escapeHtml([s.position || (isMain ? "Main admin" : "Clinic staff"), s.email].filter(Boolean).join(" · "))}</small>
@@ -1617,6 +1715,7 @@ document.addEventListener("DOMContentLoaded", () => {
             await saveAvatar(adminUser.uid, photo);
             myPhoto = photo;
             renderMyAccount();
+            renderStaff();
             toast(photo ? "Photo updated." : "Photo removed.", "success");
         } catch (error) {
             console.error("Photo error:", error);
@@ -1679,12 +1778,13 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const header = ["Date", "Day", "Time", "Reason", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Attendance", "Instructions", "Note", "Handled by"];
+        const header = ["Date", "Day", "Time", "Service", "Reason", "Patient", "Type", "ID", "Program / Department", "Email", "Phone", "Status", "Attendance", "Instructions", "Note", "Handled by"];
 
         const rows = list.map((a) => [
             a.date || "",
             a.date ? parseDateKey(a.date).toLocaleDateString("en-US", { weekday: "long" }) : "",
             a.time ? formatRange(a.time) : "",
+            serviceNameOf(a),
             reasonOf(a),
             patientName(a),
             patientRole(a),
@@ -1795,6 +1895,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadAvatar(user.uid).then((photo) => {
             myPhoto = photo;
             renderMyAccount();
+            renderStaff();
         });
 
         // Own notifications + the clinic's shared inbox

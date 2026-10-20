@@ -15,6 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
 
 import { mountBell } from "../shared/notify.js";
+import { PROGRAMS } from "../shared/config.js";
 import {
     loadAvatar,
     saveAvatar,
@@ -42,6 +43,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const editPhone = $("editPhone");
     const editProgram = $("editProgram");
     const editYearLevel = $("editYearLevel");
+
+    PROGRAMS.forEach((name) => editProgram.add(new Option(name, name)));
 
     const emergencyModal = $("emergencyModal");
     const emergencyForm = $("emergencyForm");
@@ -268,7 +271,12 @@ document.addEventListener("DOMContentLoaded", () => {
         editName.value = currentData.fullName || "";
         editEmail.value = currentData.email || "";
         editPhone.value = currentData.phone || "";
-        editProgram.value = currentData.program || currentData.course || "";
+        // Programs typed in before the dropdown existed stay selectable
+        const savedProgram = (currentData.program || currentData.course || "").toString().trim();
+        if (savedProgram && ![...editProgram.options].some((o) => o.value === savedProgram)) {
+            editProgram.add(new Option(savedProgram, savedProgram));
+        }
+        editProgram.value = savedProgram;
 
         const savedYear = (currentData.yearLevel || currentData.year || "").toString().trim();
         if (savedYear && ![...editYearLevel.options].some((o) => o.value === savedYear)) {
@@ -328,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const name = editName.value.trim();
         const newPhone = editPhone.value.trim();
-        const program = editProgram.value.trim();
+        const program = editProgram.value;
         const yearLevel = editYearLevel.value.trim();
 
         if (!name || !newPhone) {

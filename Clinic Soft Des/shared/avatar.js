@@ -62,8 +62,12 @@ export async function loadAvatars(uids) {
     return Object.fromEntries(entries.filter(([, photo]) => photo));
 }
 
-export const saveAvatar = (uid, photo) =>
-    set(ref(db, `avatars/${uid}`), photo ? { photo, updatedAt: serverTimestamp() } : null);
+export async function saveAvatar(uid, photo) {
+    await set(ref(db, `avatars/${uid}`), photo ? { photo, updatedAt: serverTimestamp() } : null);
+
+    // The header's account menu listens for this (shared/notify.js)
+    window.dispatchEvent(new CustomEvent("avatarchange", { detail: { photo } }));
+}
 
 
 /* =========================================

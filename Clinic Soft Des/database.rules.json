@@ -57,6 +57,7 @@
         "attendance": {
           ".validate": "newData.isString() && newData.val().matches(/^(pending|confirmed)$/)"
         },
+        "service": { ".validate": "newData.isString() && newData.val().matches(/^(consultation|dental|certificate)$/)" },
         "reason": { ".validate": "newData.isString() && newData.val().length <= 120" },
         "instructions": { ".validate": "newData.isString() && newData.val().length <= 600" }
       }
@@ -75,12 +76,14 @@
       }
     },
 
-    // The reasons patients choose from (edited by clinic staff)
+    // The reasons patients choose from (edited by clinic staff), each under
+    // one service: consultation | dental | certificate
     "bookingReasons": {
       ".read": "auth != null",
       ".write": "auth != null && (auth.uid === 'dMcFELN1ildDnJL4AEwUxAq0SLE2' || root.child('admins').child(auth.uid).child('active').val() === true)",
       "$id": {
-        ".validate": "newData.hasChildren(['name', 'active', 'order']) && newData.child('name').isString() && newData.child('name').val().length <= 100 && newData.child('active').isBoolean() && newData.child('order').isNumber()"
+        ".validate": "newData.hasChildren(['name', 'active', 'order']) && newData.child('name').isString() && newData.child('name').val().length <= 100 && newData.child('active').isBoolean() && newData.child('order').isNumber()",
+        "service": { ".validate": "newData.isString() && newData.val().matches(/^(consultation|dental|certificate)$/)" }
       }
     },
 

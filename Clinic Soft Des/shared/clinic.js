@@ -3,6 +3,7 @@
 // Used by the patient pages and the admin page.
 // ==========================================
 import { REMINDERS, CLINIC_HOURS, SLOT_MINUTES } from "./config.js";
+import { SERVICE_IDS, serviceName, guessService } from "./reasons.js";
 
 export { SLOT_MINUTES, BOOKING_WINDOW_DAYS } from "./config.js";
 
@@ -124,18 +125,25 @@ export function openSlots(dateKey, daySlots, closures = {}) {
 
 
 /* =========================================
-   REASONS
-   Older appointments stored a "service" instead of a reason.
+   SERVICE + REASON
+   New appointments store both. Older ones have only a reason
+   (service is told from its wording) or only a service.
 ========================================= */
 
-const OLD_SERVICES = {
-    consultation: "Medical Consultation",
-    dental: "Dental Services",
-    certificate: "Medical Certificate"
-};
+export const serviceOf = (a) =>
+    SERVICE_IDS.includes(a.service) ? a.service : guessService(a.reason || a.serviceName);
+
+export const serviceNameOf = (a) => serviceName(serviceOf(a));
 
 export const reasonOf = (a) =>
-    a.reason || a.serviceName || OLD_SERVICES[a.service] || "Clinic appointment";
+    a.reason || a.serviceName || serviceNameOf(a) || "Clinic appointment";
+
+// "Dental Consultation · Toothache / Tooth Pain" (for emails, notifications, exports)
+export function visitLabel(a) {
+    const service = serviceNameOf(a);
+    const reason = reasonOf(a);
+    return reason === service ? reason : `${service} · ${reason}`;
+}
 
 
 /* =========================================

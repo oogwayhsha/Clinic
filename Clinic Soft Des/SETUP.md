@@ -5,7 +5,7 @@ How the system works now (from the clinic interview):
 - **One appointment per 30-minute slot**, whatever the reason.
 - **Clinic hours:** Monday to Saturday, 7:00 AM – 9:00 PM. The last slot starts at 8:30 PM.
 - **Accounts:** students and employees book. **Clinic staff** sign in as **Admin**; each staff member has their own login.
-- **Booking:** patients pick a reason from a list the clinic edits. The clinic approves or declines each request.
+- **Booking:** patients pick a service (Medical Consultation, Dental Consultation or Medical Certificate), then a reason from that service's list, which the clinic edits. The clinic approves or declines each request.
 - **Emails and reminders:** the patient gets an email when a request is approved. A day before the visit they're asked to confirm they're still coming. An unconfirmed visit is cancelled automatically so someone else can use the slot.
 
 Do steps 1–3 once, in order.
@@ -32,8 +32,10 @@ The email must not already belong to a student or employee account.
 
 **Settings → Reasons patients can choose:**
 
-- The first time an admin opens the page, the default list is saved here.
-- Add, rename, reorder, switch off or delete reasons.
+- The first time an admin opens the page, the default list is saved here, grouped by service.
+- Add a reason under a service, or rename, reorder, switch off or delete reasons.
+- A service with no switched-on reasons can't be booked until you add or switch one on.
+- A reason list saved before services existed is sorted into services automatically the first time an admin opens the page, and the default dental reasons are added if there were none.
 - Switched-off and deleted reasons disappear from the booking page. Past appointments keep their reason text.
 
 **Settings → Clinic closures:**
@@ -77,6 +79,9 @@ Everything is in `shared/config.js`:
 - `CLINIC_HOURS`: days and open/close times. Also update the hours table in `dashboard/dashboard.html`.
 - `SLOT_MINUTES`, `BOOKING_WINDOW_DAYS`: slot length and how far ahead patients can book.
 - `BOOKING_LIMITS`: how many active appointments one patient can hold. The defaults are 1 per day and 3 upcoming.
+- `PROGRAMS`: the programs students choose from when registering.
+
+The three services themselves are in `shared/reasons.js` (`SERVICES`).
 
 ## Cleaning up data from the earlier version
 

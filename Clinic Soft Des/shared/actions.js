@@ -33,7 +33,9 @@ import {
     startOf,
     reminderTimes,
     needsAttendance,
-    reasonOf
+    reasonOf,
+    serviceNameOf,
+    visitLabel
 } from "./clinic.js";
 
 import { notifyUser, sendEmail, emailLayout } from "./notify.js";
@@ -100,6 +102,7 @@ export const adminLink = (a) => `admin/admin.html?appt=${a.id}`;
 
 function detailRows(a) {
     return [
+        ["Service", serviceNameOf(a)],
         ["Reason", reasonOf(a)],
         ["Date", a.date ? formatDateLong(a.date) : ""],
         ["Time", a.time ? formatRange(a.time) : ""]
@@ -141,7 +144,7 @@ export async function notifyNewRequest(a) {
     await Promise.all([
         toClinic(a, {
             title: "New appointment request",
-            body: `${a.patientName} · ${reasonOf(a)} · ${shortWhen(a)}`,
+            body: `${a.patientName} · ${visitLabel(a)} · ${shortWhen(a)}`,
             kind: "request"
         }),
         emailClinic(a, {
@@ -186,7 +189,7 @@ export async function approveAppointment(a, actor, { instructions = "" } = {}) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Appointment approved",
-            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (askNow ? ` Please confirm you're coming by ${confirmBy}.` : ""),
+            body: `${visitLabel(a)} on ${shortWhen(a)}.` + (askNow ? ` Please confirm you're coming by ${confirmBy}.` : ""),
             url: patientLink(a),
             apptId: a.id,
             kind: "success"
@@ -230,7 +233,7 @@ export async function declineAppointment(a, actor, { reason = "" } = {}) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Request declined",
-            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (reason ? ` ${reason}` : " Please book another time."),
+            body: `${visitLabel(a)} on ${shortWhen(a)}.` + (reason ? ` ${reason}` : " Please book another time."),
             url: patientLink(a),
             apptId: a.id,
             kind: "danger"
@@ -293,7 +296,7 @@ export async function cancelAppointment(a, actor, { note = "" } = {}) {
     await Promise.all([
         notifyUser(a.uid, {
             title: "Appointment cancelled by the clinic",
-            body: `${reasonOf(a)} on ${shortWhen(a)}.` + (note ? ` ${note}` : ""),
+            body: `${visitLabel(a)} on ${shortWhen(a)}.` + (note ? ` ${note}` : ""),
             url: patientLink(a),
             apptId: a.id,
             kind: "danger"

@@ -128,27 +128,39 @@
 
                 <div class="book-steps">
 
-                    <!-- STEP 1: REASON -->
+                    <!-- STEP 1: SERVICE -->
                     <section class="card">
                         <div class="card-header">
                             <span class="section-label">STEP 1</span>
+                            <h3>Choose a service</h3>
+                            <p>What do you need from the clinic?</p>
+                        </div>
+
+                        <div class="service-options" id="serviceList" role="radiogroup" aria-label="Service"></div>
+                    </section>
+
+
+                    <!-- STEP 2: REASON -->
+                    <section class="card">
+                        <div class="card-header">
+                            <span class="section-label">STEP 2</span>
                             <h3>Reason for your visit</h3>
-                            <p>Choose the one that fits best.</p>
+                            <p id="reasonNote">Choose a service first.</p>
                         </div>
 
                         <div class="form-group">
                             <label for="reason">Reason</label>
-                            <select id="reason" class="reason-select">
-                                <option value="">Loading reasons...</option>
+                            <select id="reason" class="reason-select" disabled>
+                                <option value="">Choose a service first</option>
                             </select>
                         </div>
                     </section>
 
 
-                    <!-- STEP 2: DATE -->
+                    <!-- STEP 3: DATE -->
                     <section class="card">
                         <div class="card-header">
-                            <span class="section-label">STEP 2</span>
+                            <span class="section-label">STEP 3</span>
                             <h3>Pick a date</h3>
                             <p id="hoursNote">The clinic takes appointments Monday to Saturday. You can book up to two weeks ahead.</p>
                         </div>
@@ -157,11 +169,11 @@
                     </section>
 
 
-                    <!-- STEP 3: TIME -->
+                    <!-- STEP 4: TIME -->
                     <section class="card">
                         <div class="card-header split">
                             <div>
-                                <span class="section-label">STEP 3</span>
+                                <span class="section-label">STEP 4</span>
                                 <h3>Select a time</h3>
                                 <p>Each slot is 30 minutes, one patient per slot.</p>
                             </div>
@@ -183,6 +195,10 @@
                     </div>
 
                     <dl class="summary-list">
+                        <div class="summary-row">
+                            <dt>Service</dt>
+                            <dd id="sumService" class="empty">Not selected</dd>
+                        </div>
                         <div class="summary-row">
                             <dt>Reason</dt>
                             <dd id="sumReason" class="empty">Not selected</dd>

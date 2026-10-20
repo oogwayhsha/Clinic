@@ -10,6 +10,21 @@ export const ADMIN_UID = "dMcFELN1ildDnJL4AEwUxAq0SLE2";
 
 export const CLINIC_NAME = "NUFV CARES";
 
+// Programs students pick from when registering and on their profile
+export const PROGRAMS = [
+    "BS Accountancy",
+    "BSBA in Financial Management",
+    "BSBA in Marketing Management",
+    "BS in Computer Engineering",
+    "BS in Civil Engineering",
+    "BS in Information Technology",
+    "BS in Architecture",
+    "BA in Communication",
+    "BA in Psychology",
+    "BS in Hospitality Management",
+    "BS in Tourism Management"
+];
+
 // Where "new appointment request" and "patient cancelled" emails go
 // (the clinic's shared inbox). Leave empty to skip those emails; the
 // bell on the admin page still shows them.

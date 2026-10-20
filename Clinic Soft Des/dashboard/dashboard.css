@@ -97,6 +97,8 @@ body { font-family: 'Outfit', sans-serif; background-color: #f1f5f9; color: var(
 .service-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: var(--white); border: 1.5px solid #eef2f7; border-radius: 18px; padding: 16px 14px; text-decoration: none; color: var(--primary-blue); box-shadow: var(--shadow-sm); cursor: pointer; transition: var(--transition); }
 .service-card:hover { transform: translateY(-4px); border-color: #dbe4f0; box-shadow: var(--shadow-md); }
 .service-card:active { transform: translateY(-1px); }
+/* Phones: 2 per row, so an odd last card takes the full row */
+@media (max-width: 768px) { .service-card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 .service-card:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.35); outline-offset: 2px; }
 .service-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; transition: var(--transition); }
 .service-icon svg { width: 22px; height: 22px; }

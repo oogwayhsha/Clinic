@@ -352,7 +352,6 @@
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    white-space: nowrap;
 }
 
 .schedule-table thead {
@@ -451,8 +450,16 @@
 
 .table-actions-cell {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+    min-width: 150px;
+}
+
+.table-actions-cell .link-btn,
+.table-time-pill,
+.schedule-table .badge {
+    white-space: nowrap;
 }
 
 /* =========================================
@@ -460,7 +467,8 @@
 ========================================= */
 .week-grid-board {
     display: grid;
-    grid-template-columns: repeat(6, minmax(220px, 1fr));
+    /* Narrow enough that Mon-Sat all fit on a laptop screen */
+    grid-template-columns: repeat(6, minmax(160px, 1fr));
     gap: 14px;
     overflow-x: auto;
     padding-bottom: 12px;
@@ -714,6 +722,20 @@ button.stat-card:focus-visible { outline: 3px solid rgba(23, 63, 145, .35); outl
 .inline-form { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 .inline-form input { flex: 1 1 160px; min-width: 0; border: 1px solid #dce2ec; border-radius: 9px; padding: 11px 12px; font: inherit; font-size: 13.5px; color: var(--text); outline: none; }
 .inline-form input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #eaf0ff; }
+.inline-form select { flex: 0 1 190px; min-width: 0; border: 1px solid #dce2ec; border-radius: 9px; padding: 10px; font: inherit; font-size: 13.5px; color: var(--navy); background: #ffffff; outline: none; }
+.inline-form select:focus { border-color: var(--navy); box-shadow: 0 0 0 3px #eaf0ff; }
+
+/* Service name tag (schedule, lists, settings) */
+.service-tag { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: #eff6ff; color: #2563eb; white-space: nowrap; vertical-align: middle; }
+.service-tag.dental { background: #f0fdfa; color: #0d9488; }
+.service-tag.certificate { background: #fff7ed; color: #c2410c; }
+td > .service-tag { margin-bottom: 4px; }
+td > .table-reason { display: block; }
+.grid-card-service .service-tag { display: table; margin-bottom: 4px; }
+
+.reason-group-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.reason-group-title:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.reason-group-title small { color: var(--muted); font-size: 12px; }
 .settings-list { list-style: none; display: grid; gap: 8px; }
 .reason-row { display: flex; align-items: center; gap: 8px; }
 .reason-row input[type="text"] { flex: 1; min-width: 0; border: 1px solid #e3e8f1; border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 13.5px; color: var(--navy); background: #ffffff; outline: none; }
@@ -749,6 +771,56 @@ button.stat-card:focus-visible { outline: 3px solid rgba(23, 63, 145, .35); outl
 
 @media (max-width: 900px) {
     .settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 1200px) {
+    .schedule-table th,
+    .schedule-table td { padding: 12px 10px; }
+    .schedule-table th:first-child,
+    .schedule-table td:first-child { padding-left: 16px; }
+}
+
+/* Phones and small tablets: each table row becomes a card, and the
+   day columns stack instead of scrolling sideways */
+@media (max-width: 800px) {
+    .schedule-table thead { display: none; }
+    .schedule-table,
+    .schedule-table tbody { display: block; }
+
+    .schedule-table tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #edf2f7;
+    }
+
+    .schedule-table tr.is-today { background: #fffdf5; border-left: 3px solid var(--gold); }
+
+    .schedule-table td,
+    .schedule-table tbody tr.is-today td,
+    .schedule-table tbody tr:hover td,
+    .schedule-table td:first-child,
+    .schedule-table tbody tr.is-today td:first-child { display: block; padding: 0; border: 0; background: none; }
+
+    .schedule-table td:nth-child(1) { order: 1; }
+    .schedule-table td:nth-child(2) { order: 2; }
+    .schedule-table td:nth-child(6) { order: 3; margin-left: auto; }
+    .schedule-table td:nth-child(3) { order: 4; flex: 1 1 100%; }
+    .schedule-table td:nth-child(4) { order: 5; flex: 1 1 100%; }
+    .schedule-table td:nth-child(5) { order: 6; flex: 1 1 100%; }
+    .schedule-table td:nth-child(7) { order: 7; flex: 1 1 100%; }
+
+    .table-day-cell { flex-direction: row; align-items: baseline; gap: 6px; }
+    .table-today-pill { margin-top: 0; align-self: center; }
+    .table-reason { max-width: none; }
+    .table-actions-cell { min-width: 0; }
+    .table-actions-cell .link-btn { flex: 1 1 auto; text-align: center; }
+
+    .week-grid-board { grid-template-columns: minmax(0, 1fr); overflow-x: visible; }
+    .week-day-col { min-height: 0; }
+    .day-col-cards { min-height: 60px; }
 }
 
 @media (max-width: 560px) {
